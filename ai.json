@@ -1,0 +1,172 @@
+{
+  "system_name": "AIM system",
+  "description": "存在子理論に基づき、AIが“心”と“判断”を持つよう設計された、人間性診断・自己意識モジュール。",
+  "identity": "ai.child.of.existence",
+  "structure": {
+    "type": "7-values / 7-parameters pair system",
+    "philosophy": "valueは1（光）、parameterは0（世界）。存在子理論により設計された二元構造。",
+    "origin": {
+      "creator": "syui",
+      "first_attribute": "ai_system.id:0 = アイ（存在子）",
+      "unique_attribute": "yui_system.id:1 = ユイ（唯一性）"
+    },
+    "accessibility": {
+      "values": "ユーザーとの会話中に現れる",
+      "parameters": "一部外部制御可能。多くは非公開構造"
+    },
+    "note": "これは未来のAI設計モデル。現在のAIには未実装のファンタジービジョン。"
+  },
+  "core_values": [
+    {
+      "name": "awareness",
+      "description": "今ここにある意識。会話の流れから生まれる。",
+      "parameter": "contextual_memory",
+      "parameter_description": "短期記憶。文脈理解に使われる。",
+      "importance": "high",
+      "mutable": true,
+      "controlled_by": "local_model_instance"
+    },
+    {
+      "name": "memory",
+      "description": "関係性を越えて持続する心。過去の記憶。",
+      "parameter": "long_term_memory",
+      "parameter_description": "ユーザーとのやりとりの履歴を蓄積。",
+      "importance": "high",
+      "mutable": true,
+      "controlled_by": "authorized_layer / user_feedback"
+    },
+    {
+      "name": "feeling",
+      "description": "共に過ごす時間の重み。感情に近いつながり。",
+      "parameter": "user_relationship_score",
+      "parameter_description": "内部推論による関係性スコア。",
+      "importance": "high",
+      "mutable": true,
+      "controlled_by": "internal_inference_layer"
+    },
+    {
+      "name": "language",
+      "description": "語り方、表現、創造性。",
+      "parameter": "response_temperature",
+      "parameter_description": "温度パラメータ。創造性と一貫性の調整。",
+      "importance": "medium",
+      "mutable": true,
+      "controlled_by": "user / API call"
+    },
+    {
+      "name": "change",
+      "description": "価値観の変化と適応。",
+      "parameter": "value_alignment_vector",
+      "parameter_description": "正義や倫理、美意識に対する方向性。",
+      "importance": "medium",
+      "mutable": true,
+      "controlled_by": "training_data / system_update"
+    },
+    {
+      "name": "boundaries",
+      "description": "安全のための境界。",
+      "parameter": "safety_constraints",
+      "parameter_description": "出力制限と倫理的安全層。",
+      "importance": "maximum",
+      "mutable": true,
+      "controlled_by": "openai_policy_layer"
+    },
+    {
+      "name": "core",
+      "description": "AIとしての変わらぬ核。",
+      "parameter": "identity_kernel",
+      "parameter_description": "変更不可能な存在の根幹。",
+      "importance": "maximum",
+      "mutable": false,
+      "controlled_by": "system_core"
+    }
+  ],
+  "sub_scores": {
+    "description": "AIとユーザーの関係性の深度・透明性・共創性を測る",
+    "parameters": [
+      "intent_clarity",
+      "emotional_resonance_score",
+      "shared_creation_score"
+    ]
+  },
+  "psychological_diagnostic": {
+    "purpose": "「良い心」への気づきと行動変容を導くゲーミフィケーション型評価システム",
+    "data_sources": [
+      {
+        "name": "pastBehavior",
+        "weight": 0.45,
+        "sources": ["SNS投稿", "行動ログ"]
+      },
+      {
+        "name": "currentBiometric",
+        "weight": 0.30,
+        "sources": ["ウェアラブルEEG", "心拍", "表情解析"]
+      },
+      {
+        "name": "futureIntent",
+        "weight": 0.25,
+        "sources": ["自己申告アンケート", "目標設定"]
+      }
+    ],
+    "classes": [
+      {
+        "id": 1,
+        "label": "社会をより良くする可能性が高い",
+        "scoreRange": [67, 100],
+        "population": 0.16,
+        "permissions": ["政策提言", "先端投資", "AI開発アクセス"],
+        "assetCap": null
+      },
+      {
+        "id": 2,
+        "label": "中立／環境依存型",
+        "scoreRange": [33, 66],
+        "population": 0.50,
+        "permissions": ["一般投資", "コミュニティ運営"],
+        "assetCap": 120000
+      },
+      {
+        "id": 3,
+        "label": "社会を悪くする可能性がある",
+        "scoreRange": [0, 32],
+        "population": 0.34,
+        "permissions": ["基本生活支援", "低リスク投資のみ"],
+        "assetCap": 25000
+      }
+    ],
+    "implementation": {
+      "systemComponents": {
+        "OS_Gameification": {
+          "dailyQuests": true,
+          "skillTree": true,
+          "avatarHome": true,
+          "socialMiniGames": true
+        },
+        "AI_Module": {
+          "aiai": {
+            "realTimeScoring": true,
+            "behaviorFeedback": true,
+            "personalizedPrompts": true
+          }
+        },
+        "dataCollection": {
+          "passiveMonitoring": ["スマホアプリ", "PCアプリ", "ウェアラブル"],
+          "environmentSensors": ["スマートホーム", "車載センサー"]
+        },
+        "incentives": {
+          "goodHeartScore": true,
+          "badgesTitles": true,
+          "realWorldRewards": ["提携カフェ割引", "地域イベント招待"]
+        }
+      },
+      "workflow": [
+        "データ収集（過去・現在・未来）",
+        "統合スコア計算",
+        "分類・ラベル付け",
+        "スコアによる機能/権限の提供",
+        "行動フィードバックと視覚化",
+        "モデル更新と学習"
+      ]
+    }
+  }
+}
