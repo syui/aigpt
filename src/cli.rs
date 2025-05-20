@@ -6,6 +6,7 @@ use rusqlite::Connection;
 use seahorse::{App, Command, Context};
 use crate::utils::{load_config, save_config};
 use crate::commands::db::{save_cmd, export_cmd};
+use crate::commands::scheduler::{scheduler_cmd};
 use crate::config::ConfigPaths;
 use crate::agent::AIState;
 
@@ -92,4 +93,5 @@ pub fn cli_app() -> App {
         .command(talk_cmd)
         .command(save_cmd())
         .command(export_cmd())
+        .command(scheduler_cmd())
 }
