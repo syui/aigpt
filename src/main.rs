@@ -5,6 +5,7 @@ mod agent;
 mod cli;
 mod utils;
 mod commands;
+mod config;
 
 use cli::cli_app;
 use seahorse::App;

@@ -1,15 +1,15 @@
-//src/cli.rs
-use seahorse::{App, Command, Context};
-
-use crate::utils::{load_config, save_config};
-use crate::commands::db::{save_cmd, export_cmd};
-
-use crate::agent::AIState;
+// src/cli.rs
+use std::path::{Path};
 use chrono::{Duration, Local};
 use rusqlite::Connection;
 
-pub fn cli_app() -> App {
+use seahorse::{App, Command, Context};
+use crate::utils::{load_config, save_config};
+use crate::commands::db::{save_cmd, export_cmd};
+use crate::config::ConfigPaths;
+use crate::agent::AIState;
 
+pub fn cli_app() -> App {
     let set_cmd = Command::new("set")
         .usage("set [trust|intimacy|curiosity] [value]")
         .action(|c: &Context| {
@@ -24,9 +24,13 @@ pub fn cli_app() -> App {
                 std::process::exit(1);
             });
 
-            let json_path = "config/config.json";
-            let db_path = "config/ai_state.db";
-            let mut ai = load_config(json_path);
+            // ConfigPathsを使って設定ファイルのパスを取得
+            let config_paths = ConfigPaths::new();
+            let json_path = config_paths.data_file("json");
+            // まだ user.json がない場合、example.json をコピー
+            config_paths.ensure_file_exists("json", Path::new("example.json"));
+            let db_path = config_paths.data_file("db");
+            let mut ai = load_config(json_path.to_str().unwrap());
 
             match field.as_str() {
                 "trust" => ai.relationship.trust = value,
@@ -37,9 +41,9 @@ pub fn cli_app() -> App {
                     std::process::exit(1);
                 }
             }
-            save_config(json_path, &ai);
+            save_config(json_path.to_str().unwrap(), &ai);
 
-            let conn = Connection::open(db_path).expect("DB接続失敗");
+            let conn = Connection::open(db_path.to_str().unwrap()).expect("DB接続失敗");
             ai.save_to_db(&conn).expect("DB保存失敗");
 
             println!("✅ {field} を {value} に更新しました");
@@ -48,14 +52,17 @@ pub fn cli_app() -> App {
     let show_cmd = Command::new("show")
         .usage("show")
         .action(|_c: &Context| {
-            let ai = load_config("config/config.json");
+            // ConfigPathsを使って設定ファイルのパスを取得
+            let config_paths = ConfigPaths::new();
+            let ai = load_config(config_paths.data_file("json").to_str().unwrap());
             println!("🧠 現在のAI状態:\n{:#?}", ai);
         });
 
     let talk_cmd = Command::new("talk")
         .usage("talk")
         .action(|_c: &Context| {
-            let ai = load_config("config/config.json");
+            let config_paths = ConfigPaths::new();
+            let ai = load_config(config_paths.data_file("json").to_str().unwrap());
 
             let now = Local::now().naive_local();
             let mut state = AIState {
