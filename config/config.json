@@ -4,7 +4,7 @@
     "strength": 0.8
   },
   "relationship": {
-    "trust": 0.9,
+    "trust": 0.2,
     "intimacy": 0.6,
     "curiosity": 0.5,
     "threshold": 1.5

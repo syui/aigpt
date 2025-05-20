@@ -3,6 +3,8 @@ mod model;
 mod logic;
 mod agent;
 mod cli;
+mod utils;
+mod commands;
 
 use cli::cli_app;
 use seahorse::App;

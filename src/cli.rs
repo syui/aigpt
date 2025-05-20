@@ -1,23 +1,15 @@
 //src/cli.rs
 use seahorse::{App, Command, Context};
 
-use crate::model::{AiSystem};
-use std::fs;
+use crate::utils::{load_config, save_config};
+use crate::commands::db::{save_cmd, export_cmd};
 
 use crate::agent::AIState;
 use chrono::{Duration, Local};
-
-fn load_config(path: &str) -> AiSystem {
-    let data = fs::read_to_string(path).expect("JSON読み込み失敗");
-    serde_json::from_str(&data).expect("JSONパース失敗")
-}
-
-fn save_config(path: &str, ai: &AiSystem) {
-    let json = serde_json::to_string_pretty(&ai).expect("JSONシリアライズ失敗");
-    fs::write(path, json).expect("JSON保存失敗");
-}
+use rusqlite::Connection;
 
 pub fn cli_app() -> App {
+
     let set_cmd = Command::new("set")
         .usage("set [trust|intimacy|curiosity] [value]")
         .action(|c: &Context| {
@@ -32,8 +24,9 @@ pub fn cli_app() -> App {
                 std::process::exit(1);
             });
 
-            let path = "config/config.json";
-            let mut ai = load_config(path);
+            let json_path = "config/config.json";
+            let db_path = "config/ai_state.db";
+            let mut ai = load_config(json_path);
 
             match field.as_str() {
                 "trust" => ai.relationship.trust = value,
@@ -44,8 +37,11 @@ pub fn cli_app() -> App {
                     std::process::exit(1);
                 }
             }
+            save_config(json_path, &ai);
 
-            save_config(path, &ai);
+            let conn = Connection::open(db_path).expect("DB接続失敗");
+            ai.save_to_db(&conn).expect("DB保存失敗");
+
             println!("✅ {field} を {value} に更新しました");
         });
 
@@ -87,4 +83,6 @@ pub fn cli_app() -> App {
         .command(set_cmd)
         .command(show_cmd)
         .command(talk_cmd)
+        .command(save_cmd())
+        .command(export_cmd())
 }
