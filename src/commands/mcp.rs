@@ -1,13 +1,14 @@
 // src/commands/mcp.rs
 
-use seahorse::{Command, Context, Flag, FlagType};
-use crate::chat::ask_chat;
-use crate::git::{git_init, git_status};
-
 use std::fs;
 use std::path::{PathBuf};
-use crate::config::ConfigPaths;
 use std::process::Command as OtherCommand;
+use serde_json::json;
+use seahorse::{Command, Context, Flag, FlagType};
+
+use crate::chat::ask_chat;
+use crate::git::{git_init, git_status};
+use crate::config::ConfigPaths;
 
 pub fn mcp_setup() {
     let config = ConfigPaths::new();
@@ -106,12 +107,52 @@ pub fn mcp_setup() {
     }
 }
 
+fn set_api_key_cmd() -> Command {
+    Command::new("set-api")
+        .description("OpenAI APIキーを設定")
+        .usage("mcp set-api --api <API_KEY>")
+        .flag(Flag::new("api", FlagType::String).description("OpenAI APIキー").alias("a"))
+        .action(|c: &Context| {
+            if let Ok(api_key) = c.string_flag("api") {
+                let config = ConfigPaths::new();
+                let path = config.base_dir.join("openai.json");
+                let json_data = json!({ "token": api_key });
+
+                if let Err(e) = fs::write(&path, serde_json::to_string_pretty(&json_data).unwrap()) {
+                    eprintln!("❌ ファイル書き込み失敗: {}", e);
+                } else {
+                    println!("✅ APIキーを保存しました: {}", path.display());
+                }
+            } else {
+                eprintln!("❗ APIキーを --api で指定してください");
+            }
+        })
+}
+
 fn chat_cmd() -> Command {
     Command::new("chat")
         .description("チャットで質問を送る")
-        .usage("mcp chat '質問内容' --host <OLLAMA_HOST> --model <OLLAMA_MODEL>")
-        .flag(Flag::new("host", FlagType::String).description("OLLAMAホストのURL"))
-        .flag(Flag::new("model", FlagType::String).description("OLLAMAモデル名"))
+        .usage("mcp chat '質問内容' --host <OLLAMA_HOST> --model <MODEL> [--provider <ollama|openai>] [--api-key <KEY>]")
+        .flag(
+            Flag::new("host", FlagType::String)
+                .description("OLLAMAホストのURL")
+                .alias("H"),
+        )
+        .flag(
+            Flag::new("model", FlagType::String)
+                .description("モデル名 (OLLAMA_MODEL / OPENAI_MODEL)")
+                .alias("m"),
+        )
+        .flag(
+            Flag::new("provider", FlagType::String)
+                .description("使用するプロバイダ (ollama / openai)")
+                .alias("p"),
+        )
+        .flag(
+            Flag::new("api-key", FlagType::String)
+                .description("OpenAI APIキー")
+                .alias("k"),
+        )
         .action(|c: &Context| {
             if let Some(question) = c.args.get(0) {
                 ask_chat(c, question);
@@ -157,4 +198,5 @@ pub fn mcp_cmd() -> Command {
         .command(init_cmd())
         .command(status_cmd())
         .command(setup_cmd())
+        .command(set_api_key_cmd())
 }

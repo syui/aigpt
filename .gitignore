@@ -2,3 +2,4 @@
 **.lock
 output.json
 config/*.db
+aigpt
