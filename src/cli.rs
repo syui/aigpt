@@ -4,11 +4,13 @@ use chrono::{Duration, Local};
 use rusqlite::Connection;
 
 use seahorse::{App, Command, Context};
+
 use crate::utils::{load_config, save_config};
-use crate::commands::db::{save_cmd, export_cmd};
-use crate::commands::scheduler::{scheduler_cmd};
 use crate::config::ConfigPaths;
 use crate::agent::AIState;
+use crate::commands::db::{save_cmd, export_cmd};
+use crate::commands::scheduler::{scheduler_cmd};
+use crate::commands::mcp::mcp_cmd;
 
 pub fn cli_app() -> App {
     let set_cmd = Command::new("set")
@@ -94,4 +96,5 @@ pub fn cli_app() -> App {
         .command(save_cmd())
         .command(export_cmd())
         .command(scheduler_cmd())
+        .command(mcp_cmd())
 }

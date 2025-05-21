@@ -1,22 +1,33 @@
 # ai `gpt`
 
-ai x 送信
+ai x Communication
 
-## 概要
+## Overview
 
-`ai.gpt`はAGE systemで動きます。
+`ai.gpt` runs on the AGE system.
 
-これは「人格 × 関係性 × 外部環境 × 時間変化」を軸にした、自律的・関係性駆動のAIシステムの原型です。
+This is a prototype of an autonomous, relationship-driven AI system based on the axes of "Personality × Relationship × External Environment × Time Variation."
 
-`送信可否`, `送信のタイミング`, `送信内容`が「人格 x 関係性 x 外部環境 x 時間変化」のパラメータで決定されます。
+The parameters of "Send Permission," "Send Timing," and "Send Content" are determined by the factors of "Personality x Relationship x External Environment x Time Variation."
 
-## 連携
+## Integration
 
-`ai.ai`には、AIM systemという人の心を読み取ることを目的としたシステムで動きます。
+`ai.ai` runs on the AIM system, which is designed to read human emotions.
 
-- AIMは人格と倫理の軸(AIの意識構造)
-- AGEは行動と関係性の軸(AIの自律性・振る舞い)
+- AIM focuses on the axis of personality and ethics (AI's consciousness structure)
+- AGE focuses on the axis of behavior and relationships (AI's autonomy and behavior)
 
-> この2つが連携すると、ユーザーが「AIと共に成長する」実感をもてる世界ができるんだと思うよ。
+> When these two systems work together, it creates a world where users can feel like they are "growing together with AI."
 
-とのことです。
+## mcp
+
+```sh
+$ ollama run syui/ai
+```
+
+```sh
+$ cargo build
+$ ./target/debug/aigpt mcp setup
+$ ./target/debug/aigpt mcp chat "hello world!" --host http://localhost:11434 --model syui/ai
+```
+
