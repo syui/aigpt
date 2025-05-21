@@ -132,7 +132,7 @@ fn set_api_key_cmd() -> Command {
 fn chat_cmd() -> Command {
     Command::new("chat")
         .description("チャットで質問を送る")
-        .usage("mcp chat '質問内容' --host <OLLAMA_HOST> --model <MODEL> [--provider <ollama|openai>] [--api-key <KEY>]")
+        .usage("mcp chat '質問内容' --host <OLLAMA_HOST> --model <MODEL> [--provider <ollama|openai>] [--api-key <KEY>] [--repo <REPO_URL>]")
         .flag(
             Flag::new("host", FlagType::String)
                 .description("OLLAMAホストのURL")
@@ -159,48 +159,52 @@ fn chat_cmd() -> Command {
                 .alias("r"),
         )
         .action(|c: &Context| {
-            if let Some(question) = c.args.get(0) {
-                let response = ask_chat(c, question);
-                println!("💬 応答:\n{}", response);
-            } else {
-                eprintln!("❗ 質問が必要です: mcp chat 'こんにちは'");
+            let config = ConfigPaths::new();
+
+            // repoがある場合は、コードベース読み込みモード
+            if let Ok(repo_url) = c.string_flag("repo") {
+                let repo_base = config.base_dir.join("repos");
+                let repo_dir = repo_base.join(sanitize_repo_name(&repo_url));
+
+                if !repo_dir.exists() {
+                    println!("📥 Gitリポジトリをクローン中: {}", repo_url);
+                    let status = OtherCommand::new("git")
+                        .args(&["clone", &repo_url, repo_dir.to_str().unwrap()])
+                        .status()
+                        .expect("❌ Gitのクローンに失敗しました");
+                    assert!(status.success(), "Git clone エラー");
+                } else {
+                    println!("✔ リポジトリはすでに存在します: {}", repo_dir.display());
+                }
+
+                let files = read_all_git_files(repo_dir.to_str().unwrap());
+                let prompt = format!(
+                    "以下のコードベースを読み込んで、改善案や次のステップを提案してください:\n{}",
+                    files
+                );
+
+                if let Some(response) = ask_chat(c, &prompt) {
+                    println!("💬 提案:\n{}", response);
+                } else {
+                    eprintln!("❗ 提案が取得できませんでした");
+                }
+                return;
+            }
+
+            // 通常のチャット処理（repoが指定されていない場合）
+            match c.args.get(0) {
+                Some(question) => {
+                    if let Some(response) = ask_chat(c, question) {
+                        println!("💬 応答:\n{}", response);
+                    } else {
+                        eprintln!("❗ 応答が取得できませんでした");
+                    }
+                }
+                None => {
+                    eprintln!("❗ 質問が必要です: mcp chat 'こんにちは'");
+                }
             }
         })
-    .action(|c: &Context| {
-        let config = ConfigPaths::new();
-        if let Ok(repo_url) = c.string_flag("repo") {
-            let repo_base = config.base_dir.join("repos");
-            let repo_dir = repo_base.join(sanitize_repo_name(&repo_url));
-
-            if !repo_dir.exists() {
-                println!("📥 Gitリポジトリをクローン中: {}", repo_url);
-                let status = OtherCommand::new("git")
-                    .args(&["clone", &repo_url, repo_dir.to_str().unwrap()])
-                    .status()
-                    .expect("❌ Gitのクローンに失敗しました");
-                assert!(status.success(), "Git clone エラー");
-            } else {
-                println!("✔ リポジトリはすでに存在します: {}", repo_dir.display());
-            }
-
-            //let files = read_all_git_files(&repo_dir);
-            let files = read_all_git_files(repo_dir.to_str().unwrap());
-            let prompt = format!(
-                "以下のコードベースを読み込んで、改善案や次のステップを提案してください:\n{}",
-                files
-            );
-
-            let response = ask_chat(c, &prompt);
-            println!("💡 提案:\n{}", response);
-        } else {
-            if let Some(question) = c.args.get(0) {
-                let response = ask_chat(c, question);
-                println!("💬 {}", response);
-            } else {
-                eprintln!("❗ 質問が必要です: mcp chat 'こんにちは'");
-            }
-        }
-    })
 }
 
 fn init_cmd() -> Command {
