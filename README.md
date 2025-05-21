@@ -35,5 +35,13 @@ $ ./aigpt mcp chat "hello world!" --host http://localhost:11434 --model syui/ai
 # openai api
 $ ./aigpt mcp set-api -api sk-abc123
 $ ./aigpt mcp chat "こんにちは" -p openai -m gpt-4o-mini
+
+---
+# git管理されているファイルをAIに読ませる
+./aigpt mcp chat --host http://localhost:11434 --repo git@git.syui.ai:ai/gpt
+**改善案と次のステップ:**
+1. **README.md の大幅な改善:**
+**次のステップ:**
+1. **README.md の作成:** 1.  の指示に従って、README.md ファイルを作成します。
 ```
 

@@ -43,7 +43,7 @@ fn load_openai_api_key() -> Option<String> {
     Some(parsed.token)
 }
 
-pub fn ask_chat(c: &Context, question: &str) {
+pub fn ask_chat(c: &Context, question: &str) -> String {
     let config = ConfigPaths::new();
     let base_dir = config.base_dir.join("mcp");
     let script_path = base_dir.join("scripts/ask.py");
@@ -83,18 +83,18 @@ pub fn ask_chat(c: &Context, question: &str) {
         command.env("OPENAI_API_KEY", api_key);
     }
 
-    // 🔁 実行
     let output = command
         .output()
         .expect("❌ MCPチャットスクリプトの実行に失敗しました");
 
     if output.status.success() {
-        println!("💬 {}", String::from_utf8_lossy(&output.stdout));
+        String::from_utf8_lossy(&output.stdout).to_string()
     } else {
         eprintln!(
             "❌ 実行エラー: {}\n{}",
             String::from_utf8_lossy(&output.stderr),
             String::from_utf8_lossy(&output.stdout),
         );
+        String::from("エラーが発生しました。")
     }
 }

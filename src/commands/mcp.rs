@@ -5,10 +5,10 @@ use std::path::{PathBuf};
 use std::process::Command as OtherCommand;
 use serde_json::json;
 use seahorse::{Command, Context, Flag, FlagType};
-
 use crate::chat::ask_chat;
 use crate::git::{git_init, git_status};
 use crate::config::ConfigPaths;
+use crate::commands::git_repo::read_all_git_files;
 
 pub fn mcp_setup() {
     let config = ConfigPaths::new();
@@ -153,13 +153,54 @@ fn chat_cmd() -> Command {
                 .description("OpenAI APIキー")
                 .alias("k"),
         )
+        .flag(
+            Flag::new("repo", FlagType::String)
+                .description("Gitリポジトリのパスを指定 (すべてのコードを読み込む)")
+                .alias("r"),
+        )
         .action(|c: &Context| {
             if let Some(question) = c.args.get(0) {
-                ask_chat(c, question);
+                let response = ask_chat(c, question);
+                println!("💬 応答:\n{}", response);
             } else {
                 eprintln!("❗ 質問が必要です: mcp chat 'こんにちは'");
             }
         })
+    .action(|c: &Context| {
+        let config = ConfigPaths::new();
+        if let Ok(repo_url) = c.string_flag("repo") {
+            let repo_base = config.base_dir.join("repos");
+            let repo_dir = repo_base.join(sanitize_repo_name(&repo_url));
+
+            if !repo_dir.exists() {
+                println!("📥 Gitリポジトリをクローン中: {}", repo_url);
+                let status = OtherCommand::new("git")
+                    .args(&["clone", &repo_url, repo_dir.to_str().unwrap()])
+                    .status()
+                    .expect("❌ Gitのクローンに失敗しました");
+                assert!(status.success(), "Git clone エラー");
+            } else {
+                println!("✔ リポジトリはすでに存在します: {}", repo_dir.display());
+            }
+
+            //let files = read_all_git_files(&repo_dir);
+            let files = read_all_git_files(repo_dir.to_str().unwrap());
+            let prompt = format!(
+                "以下のコードベースを読み込んで、改善案や次のステップを提案してください:\n{}",
+                files
+            );
+
+            let response = ask_chat(c, &prompt);
+            println!("💡 提案:\n{}", response);
+        } else {
+            if let Some(question) = c.args.get(0) {
+                let response = ask_chat(c, question);
+                println!("💬 {}", response);
+            } else {
+                eprintln!("❗ 質問が必要です: mcp chat 'こんにちは'");
+            }
+        }
+    })
 }
 
 fn init_cmd() -> Command {
@@ -199,4 +240,9 @@ pub fn mcp_cmd() -> Command {
         .command(status_cmd())
         .command(setup_cmd())
         .command(set_api_key_cmd())
+}
+
+// ファイル名として安全な形に変換
+fn sanitize_repo_name(repo_url: &str) -> String {
+    repo_url.replace("://", "_").replace("/", "_").replace("@", "_")
 }
