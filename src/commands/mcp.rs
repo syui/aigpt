@@ -32,8 +32,12 @@ pub fn mcp_setup() {
         "cli.py",
         "setup.py",
         "scripts/ask.py",
+        "scripts/server.py",
+        "scripts/config.py",
+        "scripts/summarize.py",
         "scripts/context_loader.py",
         "scripts/prompt_template.py",
+        "scripts/memory_store.py",
     ];
 
     for rel_path in files_to_copy {
@@ -76,6 +80,12 @@ pub fn mcp_setup() {
     let output = OtherCommand::new(&pip_path)
         .arg("install")
         .arg("openai")
+        .arg("requests")
+        .arg("fastmcp")
+        .arg("uvicorn")
+        .arg("fastapi")
+        .arg("fastapi_mcp")
+        .arg("mcp")
         .current_dir(&dest_dir)
         .output()
         .expect("pip install に失敗しました");

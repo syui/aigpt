@@ -12,3 +12,4 @@ rusqlite = { version = "0.29", features = ["serde_json"] }
 shellexpand = "*"
 fs_extra = "1.3"
 rand = "0.9.1"
+reqwest = { version = "*", features = ["blocking", "json"] }

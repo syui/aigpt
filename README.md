@@ -33,7 +33,7 @@ $ ./aigpt mcp chat "hello world!" --host http://localhost:11434 --model syui/ai
 
 ---
 # openai api
-$ ./aigpt mcp set-api -api sk-abc123
+$ ./aigpt mcp set-api --api sk-abc123
 $ ./aigpt mcp chat "こんにちは" -p openai -m gpt-4o-mini
 
 ---

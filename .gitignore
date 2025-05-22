@@ -3,3 +3,5 @@
 output.json
 config/*.db
 aigpt
+mcp/scripts/__*
+data
