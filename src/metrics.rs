@@ -42,6 +42,8 @@ pub struct Messaging {
     pub schedule_time: Option<String>,
     pub decay_rate: f32,
     pub templates: Vec<String>,
+    pub sent_today: bool, // 追加
+    pub last_sent_date: Option<String>, // 追加
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +105,8 @@ pub fn load_user_data(path: &Path) -> UserData {
                     "おはよう！今日もがんばろう！".to_string(),
                     "ねえ、話したいことがあるの。".to_string(),
                 ],
+                sent_today: false,
+                last_sent_date: None,
             },
             last_interaction: Utc::now(),
             memory: Memory {

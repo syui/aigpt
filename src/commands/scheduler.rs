@@ -19,6 +19,21 @@ fn send_scheduled_message() {
         return;
     }
 
+    // 日付の比較（1日1回制限）
+    let today = Local::now().format("%Y-%m-%d").to_string();
+    if let Some(last_date) = &user.messaging.last_sent_date {
+        if last_date != &today {
+            user.messaging.sent_today = false;
+        }
+    } else {
+        user.messaging.sent_today = false;
+    }
+
+    if user.messaging.sent_today {
+        println!("🔁 本日はすでに送信済みです: {}", today);
+        return;
+    }
+
     if let Some(schedule_str) = &user.messaging.schedule_time {
         let now = Local::now();
         let target: Vec<&str> = schedule_str.split(':').collect();
@@ -36,12 +51,19 @@ fn send_scheduled_message() {
                     let dummy_context = Context::new(vec![], None, "".to_string());
                     ask_chat(&dummy_context, msg);
                     user.metrics.intimacy += 0.03;
+
+                    // 送信済みのフラグ更新
+                    user.messaging.sent_today = true;
+                    user.messaging.last_sent_date = Some(today);
+
                     save_user_data(&user_path, &user);
                 }
             }
         }
     }
 }
+
+
 pub fn scheduler_cmd() -> Command {
     Command::new("scheduler")
         .usage("scheduler [interval_sec]")
@@ -96,7 +118,7 @@ pub fn scheduler_cmd() -> Command {
                         user.metrics.energy
                     );
                 }
-
+                
                 save_user_data(&user_path, &user);
                 thread::sleep(Duration::from_secs(interval));
             }
