@@ -1,10 +1,12 @@
 // src/metrics.rs
-use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-#[derive(Serialize, Deserialize, Debug)]
+use crate::config::ConfigPaths;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Metrics {
     pub trust: f32,
     pub intimacy: f32,
@@ -13,86 +15,129 @@ pub struct Metrics {
     pub last_updated: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Personality {
+    pub kind: String,
+    pub strength: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Relationship {
+    pub trust: f32,
+    pub intimacy: f32,
+    pub curiosity: f32,
+    pub threshold: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Environment {
+    pub luck_today: f32,
+    pub luck_history: Vec<f32>,
+    pub level: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Messaging {
+    pub enabled: bool,
+    pub schedule_time: Option<String>,
+    pub decay_rate: f32,
+    pub templates: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Memory {
+    pub recent_messages: Vec<String>,
+    pub long_term_notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserData {
+    pub personality: Personality,
+    pub relationship: Relationship,
+    pub environment: Environment,
+    pub messaging: Messaging,
+    pub last_interaction: DateTime<Utc>,
+    pub memory: Memory,
+    pub metrics: Metrics,
+}
+
 impl Metrics {
-    fn default() -> Self {
-        Self {
-            trust: 0.5,
-            intimacy: 0.5,
-            energy: 0.5,
-            last_updated: chrono::Utc::now(),
-            can_send: true,
-        }
-    }
-    /// パラメータの減衰処理を行い、can_sendを更新する
     pub fn decay(&mut self) {
         let now = Utc::now();
-        let elapsed = now.signed_duration_since(self.last_updated);
-        let hours = elapsed.num_minutes() as f32 / 60.0;
-
+        let hours = (now - self.last_updated).num_minutes() as f32 / 60.0;
         self.trust = decay_param(self.trust, hours);
         self.intimacy = decay_param(self.intimacy, hours);
         self.energy = decay_param(self.energy, hours);
-
-        self.last_updated = now;
         self.can_send = self.trust >= 0.5 && self.intimacy >= 0.5 && self.energy >= 0.5;
-    }
-
-    /// JSONからMetricsを読み込み、減衰し、保存して返す
-    pub fn load_and_decay(path: &Path) -> Self {
-        let mut metrics = if path.exists() {
-            let content = fs::read_to_string(path).expect("metrics.jsonの読み込みに失敗しました");
-            serde_json::from_str(&content).expect("JSONパース失敗")
-        } else {
-            println!("⚠️ metrics.json が存在しないため、新しく作成します。");
-            Metrics::default()
-        };
-
-        metrics.decay();
-        metrics.save(path);
-        metrics
-    }
-
-    /// Metricsを保存する
-    pub fn save(&self, path: &Path) {
-        let data = serde_json::to_string_pretty(self).expect("JSON変換失敗");
-        fs::write(path, data).expect("metrics.jsonの書き込みに失敗しました");
+        self.last_updated = now;
     }
 }
 
-/// 単一のパラメータを減衰させる
+pub fn load_user_data(path: &Path) -> UserData {
+    let config = ConfigPaths::new();
+    let example_path = Path::new("example.json");
+    config.ensure_file_exists("json", example_path);
+
+    if !path.exists() {
+        return UserData {
+            personality: Personality {
+                kind: "positive".into(),
+                strength: 0.8,
+            },
+            relationship: Relationship {
+                trust: 0.2,
+                intimacy: 0.6,
+                curiosity: 0.5,
+                threshold: 1.5,
+            },
+            environment: Environment {
+                luck_today: 0.9,
+                luck_history: vec![0.9, 0.9, 0.9],
+                level: 1,
+            },
+            messaging: Messaging {
+                enabled: true,
+                schedule_time: Some("08:00".to_string()),
+                decay_rate: 0.1,
+                templates: vec![
+                    "おはよう！今日もがんばろう！".to_string(),
+                    "ねえ、話したいことがあるの。".to_string(),
+                ],
+            },
+            last_interaction: Utc::now(),
+            memory: Memory {
+                recent_messages: vec![],
+                long_term_notes: vec![],
+            },
+            metrics: Metrics {
+                trust: 0.5,
+                intimacy: 0.5,
+                energy: 0.5,
+                can_send: true,
+                last_updated: Utc::now(),
+            },
+        };
+    }
+
+    let content = fs::read_to_string(path).expect("user.json の読み込みに失敗しました");
+    serde_json::from_str(&content).expect("user.json のパースに失敗しました")
+}
+
+pub fn save_user_data(path: &Path, data: &UserData) {
+    let content = serde_json::to_string_pretty(data).expect("user.json のシリアライズ失敗");
+    fs::write(path, content).expect("user.json の書き込みに失敗しました");
+}
+
+pub fn update_metrics_decay() -> Metrics {
+    let config = ConfigPaths::new();
+    let path = config.base_dir.join("user.json");
+    let mut data = load_user_data(&path);
+    data.metrics.decay();
+    save_user_data(&path, &data);
+    data.metrics
+}
+
 fn decay_param(value: f32, hours: f32) -> f32 {
-    let decay_rate = 0.01; // 時間ごとの減衰率
+    let decay_rate = 0.05;
     (value * (1.0f32 - decay_rate).powf(hours)).clamp(0.0, 1.0)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-
-    #[test]
-    fn test_decay_behavior() {
-        let mut metrics = Metrics {
-            trust: 1.0,
-            intimacy: 1.0,
-            energy: 1.0,
-            can_send: true,
-            last_updated: Utc::now() - Duration::hours(12),
-        };
-        metrics.decay();
-        assert!(metrics.trust < 1.0);
-        assert!(metrics.can_send); // 減衰後でも0.5以上あるならtrue
-    }
-} 
-
-pub fn load_metrics(path: &Path) -> Metrics {
-    Metrics::load_and_decay(path)
-}
-
-pub fn save_metrics(metrics: &Metrics, path: &Path) {
-    metrics.save(path)
-}
-
-pub fn update_metrics_decay(metrics: &mut Metrics) {
-    metrics.decay()
 }

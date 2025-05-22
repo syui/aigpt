@@ -4,7 +4,7 @@ use std::process::Command;
 use serde::Deserialize;
 use seahorse::Context;
 use crate::config::ConfigPaths;
-use crate::metrics::{load_metrics, save_metrics, update_metrics_decay};
+use crate::metrics::{load_user_data, save_user_data, update_metrics_decay};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Provider {
@@ -46,33 +46,28 @@ pub fn ask_chat(c: &Context, question: &str) -> Option<String> {
     let config = ConfigPaths::new();
     let base_dir = config.base_dir.join("mcp");
     let script_path = base_dir.join("scripts/ask.py");
-    let metrics_path = config.base_dir.join("metrics.json");
-    let mut metrics = load_metrics(&metrics_path);
+    let user_path = config.base_dir.join("user.json");
 
-    update_metrics_decay(&mut metrics);
+    let mut user = load_user_data(&user_path);
+    user.metrics = update_metrics_decay();
 
-    if !metrics.can_send {
-        println!("❌ 送信条件を満たしていないため、AIメッセージは送信されません。");
-        return None;
-    }
-
+    // Python 実行パス
     let python_path = if cfg!(target_os = "windows") {
         base_dir.join(".venv/Scripts/python.exe")
     } else {
         base_dir.join(".venv/bin/python")
     };
 
+    // 各種オプション
     let ollama_host = c.string_flag("host").ok();
     let ollama_model = c.string_flag("model").ok();
     let provider_str = c.string_flag("provider").unwrap_or_else(|_| "ollama".to_string());
     let provider = Provider::from_str(&provider_str).unwrap_or(Provider::Ollama);
-    //let api_key = c.string_flag("api-key").ok().or_else(|| crate::metrics::load_openai_api_key());
-    let api_key = c.string_flag("api-key")
-        .ok()
-        .or_else(|| load_openai_api_key());
+    let api_key = c.string_flag("api-key").ok().or_else(load_openai_api_key);
 
     println!("🔍 使用プロバイダー: {}", provider.as_str());
 
+    // Python コマンド準備
     let mut command = Command::new(python_path);
     command.arg(script_path).arg(question);
 
@@ -93,12 +88,10 @@ pub fn ask_chat(c: &Context, question: &str) -> Option<String> {
 
     if output.status.success() {
         let response = String::from_utf8_lossy(&output.stdout).to_string();
-        println!("💬 {}", response);
+        user.metrics.intimacy += 0.01;
+        user.metrics.last_updated = chrono::Utc::now();
+        save_user_data(&user_path, &user);
 
-        // 応答後のメトリクス更新
-        metrics.intimacy += 0.02;
-        metrics.last_updated = chrono::Utc::now();
-        save_metrics(&metrics, &metrics_path);
         Some(response)
     } else {
         eprintln!(

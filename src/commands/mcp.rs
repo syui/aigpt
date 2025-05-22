@@ -9,6 +9,7 @@ use crate::chat::ask_chat;
 use crate::git::{git_init, git_status};
 use crate::config::ConfigPaths;
 use crate::commands::git_repo::read_all_git_files;
+use crate::metrics::{load_user_data, save_user_data};
 
 pub fn mcp_setup() {
     let config = ConfigPaths::new();
@@ -160,7 +161,8 @@ fn chat_cmd() -> Command {
         )
         .action(|c: &Context| {
             let config = ConfigPaths::new();
-
+            let user_path = config.data_file("json");
+            let mut user = load_user_data(&user_path);
             // repoがある場合は、コードベース読み込みモード
             if let Ok(repo_url) = c.string_flag("repo") {
                 let repo_base = config.base_dir.join("repos");
@@ -188,14 +190,24 @@ fn chat_cmd() -> Command {
                 } else {
                     eprintln!("❗ 提案が取得できませんでした");
                 }
+
                 return;
             }
 
             // 通常のチャット処理（repoが指定されていない場合）
             match c.args.get(0) {
                 Some(question) => {
-                    if let Some(response) = ask_chat(c, question) {
-                        println!("💬 応答:\n{}", response);
+                    let response = ask_chat(c, question);
+
+                    if let Some(ref text) = response {
+                        println!("💬 応答:\n{}", text);
+                        // 返答内容に基づいて増減（返答の感情解析）
+                        if text.contains("thank") || text.contains("great") {
+                            user.metrics.trust += 0.05;
+                        } else if text.contains("hate") || text.contains("bad") {
+                            user.metrics.trust -= 0.05;
+                        }
+                        save_user_data(&user_path, &user);
                     } else {
                         eprintln!("❗ 応答が取得できませんでした");
                     }

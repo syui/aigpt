@@ -26,5 +26,17 @@
       "おはよう！今日もがんばろう！",
       "ねえ、話したいことがあるの。"
     ]
+  },
+  "last_interaction": "2025-05-21T23:15:00Z",
+  "memory": {
+    "recent_messages": [],
+    "long_term_notes": []
+  },
+  "metrics": {
+    "trust": 0.5,
+    "intimacy": 0.5,
+    "energy": 0.5,
+    "can_send": true,
+    "last_updated": "2025-05-21T15:52:06.590981Z"
   }
 }
