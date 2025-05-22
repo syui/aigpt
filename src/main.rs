@@ -9,6 +9,7 @@ mod config;
 mod git;
 mod chat;
 mod metrics;
+mod memory;
 
 use cli::cli_app;
 use seahorse::App;

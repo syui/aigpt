@@ -10,6 +10,7 @@ use crate::git::{git_init, git_status};
 use crate::config::ConfigPaths;
 use crate::commands::git_repo::read_all_git_files;
 use crate::metrics::{load_user_data, save_user_data};
+use crate::memory::{log_message};
 
 pub fn mcp_setup() {
     let config = ConfigPaths::new();
@@ -197,6 +198,7 @@ fn chat_cmd() -> Command {
             // 通常のチャット処理（repoが指定されていない場合）
             match c.args.get(0) {
                 Some(question) => {
+                    log_message(&config.base_dir, "user", question);
                     let response = ask_chat(c, question);
 
                     if let Some(ref text) = response {
@@ -207,6 +209,7 @@ fn chat_cmd() -> Command {
                         } else if text.contains("hate") || text.contains("bad") {
                             user.metrics.trust -= 0.05;
                         }
+                        log_message(&config.base_dir, "ai", &text);
                         save_user_data(&user_path, &user);
                     } else {
                         eprintln!("❗ 応答が取得できませんでした");
