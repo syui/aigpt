@@ -1,5 +1,4 @@
-# scripts/config.py
-# scripts/config.py
+# mcp/config.py
 import os
 from pathlib import Path
 
@@ -9,11 +8,13 @@ MEMORY_DIR = BASE_DIR / "memory"
 SUMMARY_DIR = MEMORY_DIR / "summary"
 
 def init_directories():
+    """必要なディレクトリを作成"""
     BASE_DIR.mkdir(parents=True, exist_ok=True)
     MEMORY_DIR.mkdir(parents=True, exist_ok=True)
     SUMMARY_DIR.mkdir(parents=True, exist_ok=True)
 
 def load_config():
+    """環境変数から設定を読み込み"""
     provider = os.getenv("PROVIDER", "ollama")
     model = os.getenv("MODEL", "syui/ai" if provider == "ollama" else "gpt-4o-mini")
     api_key = os.getenv("OPENAI_API_KEY", "")

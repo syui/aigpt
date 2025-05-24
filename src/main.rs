@@ -1,21 +1,28 @@
-//src/main.rs
-mod model;
-mod logic;
-mod agent;
+// main.rs
 mod cli;
-mod utils;
-mod commands;
 mod config;
-mod git;
-mod chat;
-mod metrics;
-mod memory;
+mod mcp;
 
-use cli::cli_app;
-use seahorse::App;
+use cli::{Args, Commands, ServerCommands};
+use clap::Parser;
 
-fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let app: App = cli_app();
-    app.run(args);
+#[tokio::main]
+async fn main() {
+    let args = Args::parse();
+
+    match args.command {
+        Commands::Server { command } => {
+            match command {
+                ServerCommands::Setup => {
+                    mcp::server::setup();
+                }
+                ServerCommands::Run => {
+                    mcp::server::run().await;
+                }
+            }
+        }
+        Commands::Chat { message } => {
+            mcp::server::chat(&message).await;
+        }
+    }
 }

@@ -22,6 +22,7 @@ impl ConfigPaths {
         }
     }
 
+    #[allow(dead_code)]
     pub fn data_file(&self, file_name: &str) -> PathBuf {
         let file_path = match file_name {
             "db" => self.base_dir.join("user.db"),
@@ -29,18 +30,30 @@ impl ConfigPaths {
             "json" => self.base_dir.join("user.json"),
             _ => self.base_dir.join(format!(".{}", file_name)),
         };
-
         file_path
     }
-   /// 設定ファイルがなければ `example.json` をコピーする
-    pub fn ensure_file_exists(&self, file_name: &str, template_path: &Path) {
-        let target = self.data_file(file_name);
-        if !target.exists() {
-            if let Err(e) = fs::copy(template_path, &target) {
-                eprintln!("⚠️ 設定ファイルの初期化に失敗しました: {}", e);
-            } else {
-                println!("📄 {} を {} にコピーしました", template_path.display(), target.display());
-            }
+
+    pub fn mcp_dir(&self) -> PathBuf {
+        self.base_dir.join("mcp")
+    }
+
+    pub fn venv_path(&self) -> PathBuf {
+        self.mcp_dir().join(".venv")
+    }
+
+    pub fn python_executable(&self) -> PathBuf {
+        if cfg!(windows) {
+            self.venv_path().join("Scripts").join("python.exe")
+        } else {
+            self.venv_path().join("bin").join("python")
+        }
+    }
+
+    pub fn pip_executable(&self) -> PathBuf {
+        if cfg!(windows) {
+            self.venv_path().join("Scripts").join("pip.exe")
+        } else {
+            self.venv_path().join("bin").join("pip")
         }
     }
 }
