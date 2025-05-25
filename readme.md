@@ -1,130 +1,27 @@
-Memory-Enhanced MCP Server 使用ガイド
-概要
-このMCPサーバーは、ChatGPTの会話履歴を記憶として保存し、AIとの対話で活用できる機能を提供します。
+# ai `gpt`
 
-セットアップ
-1. 依存関係のインストール
-bash
-pip install -r requirements.txt
-2. サーバーの起動
-bash
-python mcp/server.py
-サーバーは http://localhost:5000 で起動します。
+自発的送信AI
 
-使用方法
-1. ChatGPTの会話履歴をインポート
-ChatGPTから会話をエクスポートし、JSONファイルとして保存してください。
+## 🎯 目的・目標（Purpose & Goal）
+- 人格を持つAIが、関係性に応じて自発的にメッセージを送信する仕組みをつくる。
+- 関係性や記憶を不可逆に記録・反映し、唯一性ある人格を構成する。
+- 送信の可否、送信のタイミング、送信内容はAIの関係性パラメータに基づいて決定する。
 
-bash
-# 単一ファイルをインポート
-python mcp/memory_client.py import your_chatgpt_export.json
+## 🧠 中核設計（Core Concepts）
+- **人格**：記憶（過去の発話）と関係性（他者とのつながり）のパラメータで構成
+- **唯一性**：変更不可、不可逆。関係性が壊れたら修復不可能。
+- **送信条件**：関係性パラメータが一定閾値を超えると「送信」が解禁される
 
-# インポート結果の例
-✅ Imported 5/5 conversations
-2. 記憶の検索
-bash
-# キーワードで記憶を検索
-python mcp/memory_client.py search "プログラミング"
+## 🔩 技術仕様（Technical Specs）
+- 言語：python, rust, mcp
+- ストレージ：json or sqliteで記憶管理（バージョンで選択）
+- 関係性パラメータ：数値化された評価 + 減衰（時間） + 環境要因（ステージ）
+- 記憶圧縮：ベクトル要約 + ハッシュ保存
+- rustのcli(clap)でインターフェイスを作成
+- fastapi_mcpでserverを立て、AIがそれを利用する形式
 
-# 検索結果の例
-🔍 Searching for: プログラミング
-📚 Found 3 memories:
-  • Pythonの基礎学習
-    Summary: Conversation with 10 user messages and 8 assistant responses...
-    Messages: 18
-3. 記憶一覧の表示
-bash
-python mcp/memory_client.py list
-
-# 結果の例
-📋 Listing all memories...
-📚 Total memories: 15
-  • day
-    Source: chatgpt
-    Messages: 2
-    Imported: 2025-01-21T10:30:45.123456
-4. 記憶の詳細表示
-bash
-python mcp/memory_client.py detail "/path/to/memory/file.json"
-
-# 結果の例
-📄 Getting details for: /path/to/memory/file.json
-Title: day
-Source: chatgpt
-Summary: Conversation with 1 user messages and 1 assistant responses...
-Messages: 2
-
-Recent messages:
-  user: こんにちは...
-  assistant: こんにちは〜！✨...
-5. 記憶を活用したチャット
-bash
-python mcp/memory_client.py chat "Pythonについて教えて"
-
-# 結果の例
-💬 Chatting with memory: Pythonについて教えて
-🤖 Response: Enhanced response with memory context...
-📚 Memories used: 2
-API エンドポイント
-POST /memory/import/chatgpt
-ChatGPTの会話履歴をインポート
-
-json
-{
-  "conversation_data": { ... }
-}
-POST /memory/search
-記憶を検索
-
-json
-{
-  "query": "検索キーワード",
-  "limit": 10
-}
-GET /memory/list
-すべての記憶をリスト
-
-GET /memory/detail?filepath=/path/to/file
-記憶の詳細を取得
-
-POST /chat
-記憶を活用したチャット
-
-json
-{
-  "message": "メッセージ",
-  "model": "model_name"
-}
-記憶の保存場所
-記憶は以下のディレクトリに保存されます：
-
-~/.config/aigpt/memory/chatgpt/
-各会話は個別のJSONファイルとして保存され、以下の情報を含みます：
-
-タイトル
-インポート時刻
-メッセージ履歴
-自動生成された要約
-メタデータ
-ChatGPTの会話エクスポート方法
-ChatGPTの設定画面を開く
-"Data controls" → "Export data" を選択
-エクスポートファイルをダウンロード
-conversations.json ファイルを使用
-拡張可能な機能
-高度な検索: ベクトル検索やセマンティック検索の実装
-要約生成: AIによる自動要約の改善
-記憶の分類: カテゴリやタグによる分類
-記憶の統合: 複数の会話からの知識統合
-プライバシー保護: 機密情報の自動検出・マスキング
-トラブルシューティング
-サーバーが起動しない
-ポート5000が使用中でないか確認
-依存関係が正しくインストールされているか確認
-インポートに失敗する
-JSONファイルが正しい形式か確認
-ファイルパスが正しいか確認
-ファイルの権限を確認
-検索結果が表示されない
-インポートが正常に完了しているか確認
-検索キーワードを変更して試行
+## 📦 主要構成要素（Components）
+- `MemoryManager`: 発言履歴・記憶圧縮管理
+- `RelationshipTracker`: 関係性スコアの蓄積と判定
+- `TransmissionController`: 閾値判定＆送信トリガー
+- `Persona`: 上記すべてを統括する人格モジュール
