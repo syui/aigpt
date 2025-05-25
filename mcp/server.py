@@ -49,16 +49,32 @@ class MemoryManager:
         message_nodes = []
         for node_id, node in mapping.items():
             message = node.get("message")
-            if message and message.get("content", {}).get("parts"):
-                parts = message["content"]["parts"]
-                if parts and parts[0].strip():  # 空でないメッセージのみ
-                    message_nodes.append({
-                        "id": node_id,
-                        "create_time": message.get("create_time", 0),
-                        "author_role": message["author"]["role"],
-                        "content": parts[0],
-                        "parent": node.get("parent")
-                    })
+            if not message:
+                continue
+            content = message.get("content", {})
+            parts = content.get("parts", [])
+
+            # partsが存在し、最初の要素が文字列で空でない場合のみ
+            if parts and isinstance(parts[0], str) and parts[0].strip():
+                message_nodes.append({
+                    "id": node_id,
+                    "create_time": message.get("create_time", 0),
+                    "author_role": message["author"]["role"],
+                    "content": parts[0],
+                    "parent": node.get("parent")
+                })
+            else:
+                print(f"⚠️ Skipped non-text or empty message in node {node_id}")
+            #if message and message.get("content", {}).get("parts"):
+            #    parts = message["content"]["parts"]
+            #    if parts and parts[0].strip():  # 空でないメッセージのみ
+            #        message_nodes.append({
+            #            "id": node_id,
+            #            "create_time": message.get("create_time", 0),
+            #            "author_role": message["author"]["role"],
+            #            "content": parts[0],
+            #            "parent": node.get("parent")
+            #        })
         
         # 作成時間でソート
         message_nodes.sort(key=lambda x: x["create_time"] or 0)
