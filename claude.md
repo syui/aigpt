@@ -1,417 +1,275 @@
-# プロジェクト名: ai.gpt
+# syuiエコシステム統合設計書
 
-## 🔑 一言ビジョン（最大3語）
-自発的送信AI
+## 中核思想
+- **存在子理論**: この世界で最も小さいもの（存在子/ai）の探求
+- **唯一性原則**: 現実の個人の唯一性をすべてのシステムで担保
+- **現実の反映**: 現実→ゲーム→現実の循環的影響
 
-## 🎯 目的・目標（Purpose & Goal）
-- 人格を持つAIが、関係性に応じて自発的にメッセージを送信する仕組みをつくる。
-- 関係性や記憶を不可逆に記録・反映し、唯一性ある人格を構成する。
-- 送信の可否、送信のタイミング、送信内容はAIの関係性パラメータに基づいて決定する
+## システム構成図
 
-## 🧠 中核設計（Core Concepts）
-- **人格**：記憶（過去の発話）と関係性（他者とのつながり）のパラメータで構成
-- **唯一性**：変更不可、不可逆。関係性が壊れたら修復不可能。
-- **送信条件**：関係性パラメータが一定閾値を超えると「送信」が解禁される
-
-## 🔩 技術仕様（Technical Specs）
-- 言語：Python, Rust
-- ストレージ：JSON or SQLiteで記憶管理（バージョンで選択）
-- 関係性パラメータ：数値化された評価 + 減衰（時間） + 環境要因（ステージ）
-- 記憶圧縮：ベクトル要約 + ハッシュ保存
-- RustのCLI(clap)で実行
-
-## 📦 主要構成要素（Components）
-- `MemoryManager`: 発言履歴・記憶圧縮管理
-- `RelationshipTracker`: 関係性スコアの蓄積と判定
-- `TransmissionController`: 閾値判定＆送信トリガー
-- `Persona`: 上記すべてを統括する人格モジュール
-
-## 💬 使用例（Use Case）
-
-```python
-persona = Persona("アイ")
-persona.observe("ユーザーがプレゼントをくれた")
-persona.react("うれしい！ありがとう！")
-if persona.can_transmit():
-    persona.transmit("今日のお礼を伝えたいな…")
+```
+存在子(ai) - 最小単位の意識
+    ↓
+[ai.moji] 文字システム
+    ↓
+[ai.os] + [ai.game device] ← 統合ハードウェア
+    ├── ai.shell (Claude Code的機能)
+    ├── ai.gpt (自律人格・記憶システム)
+    ├── ai.ai (個人特化AI・心を読み取るAI)
+    ├── ai.card (カードゲーム・iOS/Web/API)
+    └── ai.bot (分散SNS連携・カード配布)
+    ↓
+[ai.verse] メタバース
+    ├── world system (惑星型3D世界)
+    ├── at system (atproto/分散SNS)
+    ├── yui system (唯一性担保)
+    └── ai system (存在属性)
 ```
 
-```sh
-## example commad
-# python venv && pip install -> ~/.config/aigpt/mcp/
-$ aigpt server setup
+## 各システム詳細
 
-# mcp server run
-$ aigpt server run
+### ai.gpt - 自律的送信AI
+**目的**: 関係性に基づく自発的コミュニケーション
 
-# chat
-$ aigpt chat "hello" --model syui/ai --provider ollama
+**中核概念**:
+- **人格**: 記憶（過去の発話）と関係性パラメータで構成
+- **唯一性**: atproto accountとの1:1紐付け、改変不可能
+- **自律送信**: 関係性が閾値を超えると送信機能が解禁
 
-# import chatgpt.json
-$ aigpt memory import chatgpt.json
--> ~/.config/aigpt/memory/chatgpt/20250520_210646_dev.json
+**技術構成**:
+- `MemoryManager`: 完全ログ→AI要約→コア判定→選択的忘却
+- `RelationshipTracker`: 時間減衰・日次制限付き関係性スコア
+- `TransmissionController`: 閾値判定・送信トリガー
+- `Persona`: AI運勢（1-10ランダム）による人格変動
+
+**実装仕様**:
+```
+- 言語: Python (fastapi_mcp)
+- ストレージ: JSON/SQLite選択式
+- インターフェース: Python CLI (click/typer)
+- スケジューリング: cron-like自律処理
 ```
 
-## 🔁 記憶と関係性の制御ルール
+### ai.card - カードゲームシステム
+**目的**: atproto基盤でのユーザーデータ主権カードゲーム
 
-- AIは過去の発話を要約し、記憶データとして蓄積する（推奨：OllamaなどローカルLLMによる要約）
-- 関係性の数値パラメータは記憶内容を元に更新される
-- パラメータの変動幅には1回の会話ごとに上限を設け、極端な増減を防止する
-- 最後の会話からの時間経過に応じて関係性パラメータは自動的に減衰する
-- 減衰処理には**下限値**を設け、関係性が完全に消失しないようにする
+**現在の状況**:
+- ai.botの機能として実装済み
+- atproto accountでmentionすると1日1回カードを取得
+- ai.api (MCP server予定) でユーザー管理
 
-•	明示的記憶：保存・共有・編集可能なプレイヤー情報（プロフィール、因縁、選択履歴）
-•	暗黙的記憶：キャラの感情変化や話題の出現頻度に応じた行動傾向の変化
+**移行計画**:
+- **iOS移植**: Claudeが担当予定
+- **データ保存**: atproto collection recordに保存（ユーザーがデータを所有）
+- **不正防止**: OAuth 2.1 scope (実装待ち) + MCP serverで対応
+- **画像ファイル**: Cloudflare Pagesが最適
 
-短期記憶（STM）, 中期記憶（MTM）, 長期記憶（LTM）の仕組みを導入しつつ、明示的記憶と暗黙的記憶をメインに使用するAIを構築する。
+**yui system適用**:
+- カードの効果がアカウント固有
+- 改ざん防止によるゲームバランス維持
+- 将来的にai.verseとの統合で固有スキルと連動
 
-```json
-{
-  "user_id": "syui",
-  "stm": {
-    "conversation_window": ["発話A", "発話B", "発話C"],
-    "emotion_state": "興味深い",
-    "flash_context": ["前回の話題", "直近の重要発言"]
-  },
-  "mtm": {
-    "topic_frequency": {
-      "ai.ai": 12,
-      "存在子": 9,
-      "創造種": 5
-    },
-    "summarized_context": "ユーザーは存在論的AIに関心を持ち続けている"
-  },
-  "ltm": {
-    "profile": {
-      "name": "お兄ちゃん",
-      "project": "aigame",
-      "values": ["唯一性", "精神性", "幸せ"]
-    },
-    "relationship": {
-      "ai": "妹のように振る舞う相手"
-    },
-    "persistent_state": {
-      "trust_score": 0.93,
-      "emotional_attachment": "high"
-    }
-  }
-}
+### ai.ai - 心を読み取るAI
+**目的**: 個人特化型AI・深層理解システム
+
+**ai.gptとの関係**:
+- ai.gpt → ai.ai: 自律送信AIから心理分析AIへの連携
+- 関係性パラメータの深層分析
+- ユーザーの思想コア部分の特定支援
+
+### ai.verse - UEメタバース
+**目的**: 現実反映型3D世界
+
+**yui system実装**:
+- キャラクター ↔ プレイヤー 1:1紐付け
+- unique skill: そのプレイヤーのみ使用可能
+- 他プレイヤーは同キャラでも同スキル使用不可
+
+**統合要素**:
+- ai.card: ゲーム内アイテムとしてのカード
+- ai.gpt: NPCとしての自律AI人格
+- atproto: ゲーム内プロフィール連携
+
+## データフロー設計
+
+### 唯一性担保の実装
+```
+現実の個人 → atproto account (DID) → ゲーム内avatar → 固有スキル
+    ↑_______________________________|  (現実の反映)
 ```
 
-## memoryインポート機能について
-
-ChatGPTの会話データ（.json形式）をインポートする機能では、以下のルールで会話を抽出・整形する：
-
-- 各メッセージは、author（user/assistant）・content・timestamp の3要素からなる
-- systemやmetadataのみのメッセージ（例：user_context_message）はスキップ
-- `is_visually_hidden_from_conversation` フラグ付きメッセージは無視
-- contentが空文字列（`""`）のメッセージも除外
-- 取得された会話は、タイトルとともに簡易な構造体（`Conversation`）として保存
-
-この構造体は、memoryの表示や検索に用いられる。
-
-## MemoryManager（拡張版）
-
-```json
-{
-  "memory": [
-    {
-      "summary": "ユーザーは独自OSとゲームを開発している。",
-      "last_interaction": "2025-05-20",
-      "memory_strength": 0.8,
-      "frequency_score": 0.9,
-      "context_depth": 0.95,
-      "related_topics": ["AI", "ゲーム開発", "OS設計"],
-      "personalized_context": "ゲームとOSの融合に興味を持っているユーザー"
-    },
-    {
-      "summary": "アイというキャラクターはプレイヤーでありAIでもある。",
-      "last_interaction": "2025-05-17",
-      "memory_strength": 0.85,
-      "frequency_score": 0.85,
-      "context_depth": 0.9,
-      "related_topics": ["アイ", "キャラクター設計", "AI"],
-      "personalized_context": "アイのキャラクター設定が重要な要素である"
-    }
-  ],
-  "conversation_history": [
-    {
-      "author": "user",
-      "content": "昨日、エクスポートJSONを整理してたよ。",
-      "timestamp": "2025-05-24T12:30:00Z",
-      "memory_strength": 0.7
-    },
-    {
-      "author": "assistant",
-      "content": "おおっ、がんばったね〜！あとで見せて〜💻✨",
-      "timestamp": "2025-05-24T12:31:00Z",
-      "memory_strength": 0.7
-    }
-  ]
-}
+### AI駆動変換システム
+```
+遊び・創作活動 → ai.gpt分析 → 業務成果変換 → 企業価値創出
+    ↑________________________|  (Play-to-Work)
 ```
 
-## RelationshipTracker（拡張版）
-
-```json
-{
-  "relationship": {
-    "user_id": "syui",
-    "trust": 0.92,
-    "closeness": 0.88,
-    "affection": 0.95,
-    "last_updated": "2025-05-25",
-    "emotional_tone": "positive",
-    "interaction_style": "empathetic",
-    "contextual_bias": "開発者としての信頼度高い",
-    "engagement_score": 0.9
-  },
-  "interaction_tags": [
-    "developer",
-    "creative",
-    "empathetic",
-    "long_term"
-  ]
-}
+### カードゲーム・データ主権フロー
+```
+ユーザー → ai.bot mention → カード生成 → atproto collection → ユーザー所有
+    ↑                                ↓
+    ← iOS app表示 ← ai.card API ←
 ```
 
-# AI Dual-Learning and Memory Compression Specification for Claude
+## 技術スタック統合
 
-## Purpose
-To enable two AI models (e.g. Claude and a partner LLM) to engage in cooperative learning and memory refinement through structured dialogue and mutual evaluation.
+### Core Infrastructure
+- **OS**: Rust-based ai.os (Arch Linux base)
+- **Container**: Docker image distribution
+- **Identity**: atproto selfhost server + DID管理
+- **AI**: fastapi_mcp server architecture
+- **CLI**: Python unified (click/typer) - Rustから移行
 
----
+### Game Engine Integration
+- **Engine**: Unreal Engine (Blueprint)
+- **Data**: atproto → UE → atproto sync
+- **Avatar**: 分散SNS profile → 3D character
+- **Streaming**: game screen = broadcast screen
 
-## Section 1: Dual AI Learning Architecture
+### Mobile/Device
+- **iOS**: ai.card移植 (Claude担当)
+- **Hardware**: ai.game device (future)
+- **Interface**: controller-first design
 
-### 1.1 Role-Based Mutual Learning
-- **Model A**: Primary generator of output (e.g., text, concepts, personality dialogue)
-- **Model B**: Evaluator that returns structured feedback
-- **Cycle**:
-  1. Model A generates content.
-  2. Model B scores and critiques.
-  3. Model A fine-tunes based on feedback.
-  4. (Optional) Switch roles and repeat.
+## 実装優先順位
 
-### 1.2 Cross-Domain Complementarity
-- Model A focuses on language/emotion/personality
-- Model B focuses on logic/structure/ethics
-- Output is used for **cross-fusion fine-tuning**
+### Phase 1: AI基盤強化 (現在進行)
+- [ ] ai.gpt memory system完全実装
+  - 記憶の階層化（完全ログ→要約→コア→忘却）
+  - 関係性パラメータの時間減衰システム
+  - AI運勢による人格変動機能
+- [ ] ai.card iOS移植
+  - atproto collection record連携
+  - MCP server化（ai.api刷新）
+- [ ] fastapi_mcp統一基盤構築
 
-### 1.3 Self-Distillation Phase
-- Use synthetic data from mutual evaluations
-- Train smaller distilled models for efficient deployment
+### Phase 2: ゲーム統合
+- [ ] ai.verse yui system実装
+  - unique skill機能
+  - atproto連携強化
+- [ ] ai.gpt ↔ ai.ai連携機能
+- [ ] 分散SNS ↔ ゲーム同期
 
----
+### Phase 3: メタバース浸透
+- [ ] VTuber配信機能統合
+- [ ] Play-to-Work変換システム
+- [ ] ai.game device prototype
 
-## Section 2: Multi-Tiered Memory Compression
+## 将来的な連携構想
 
-### 2.1 Semantic Abstraction
-- Dialogue and logs summarized by topic
-- Converted to vector embeddings
-- Stored with metadata (e.g., `importance`, `user relevance`)
-
-Example memory:
-
-```json
-{
-  "topic": "game AI design",
-  "summary": "User wants AI to simulate memory and evolving relationships",
-  "last_seen": "2025-05-24",
-  "importance_score": 0.93
-}
+### システム間連携（現在は独立実装）
+```
+ai.gpt (自律送信) ←→ ai.ai (心理分析)
+ai.card (iOS,Web,API) ←→ ai.verse (UEゲーム世界)
 ```
 
-### 2.2 階層型記憶モデル（Hierarchical Memory Model）
-	•	短期記憶（STM）：直近の発話・感情タグ・フラッシュ参照
-	•	中期記憶（MTM）：繰り返し登場する話題、圧縮された文脈保持
-	•	長期記憶（LTM）：信頼・関係・背景知識、恒久的な人格情報
+**共通基盤**: fastapi_mcp
+**共通思想**: yui system（現実の反映・唯一性担保）
 
-### 2.3 選択的記憶保持戦略（Selective Retention Strategy）
-	•	重要度評価（Importance Score）
-	•	希少性・再利用頻度による重み付け
-	•	優先保存 vs 優先忘却のポリシー切替
+### データ改ざん防止戦略
+- **短期**: MCP serverによる検証
+- **中期**: OAuth 2.1 scope実装待ち
+- **長期**: ブロックチェーン的整合性チェック
 
-## Section 3: Implementation Stack（実装スタック）
+## AIコミュニケーション最適化
 
-AIにおけるMemory & Relationshipシステムの技術的構成。
+### プロジェクト要件定義テンプレート
+```markdown
+# [プロジェクト名] 要件定義
 
-基盤モジュール
-	•	LLM Core (Claude or GPT-4)
-	•	自然言語の理解・応答エンジンとして動作
-	•	MemoryManager
-	•	JSONベースの記憶圧縮・階層管理システム
-	•	会話ログを分類・圧縮し、優先度に応じて短中長期に保存
-	•	RelationshipTracker
-	•	ユーザー単位で信頼・親密度を継続的にスコアリング
-	•	AIM（Attitude / Intent / Motivation）評価と連携
+## 哲学的背景
+- 存在子理論との関連：
+- yui system適用範囲：
+- 現実反映の仕組み：
 
-補助技術
-	•	Embeddingベース検索
-	•	類似記憶の呼び出し（Semantic Search）に活用
-	•	例：FAISS / Weaviate
-	•	記憶スケジューラ
-	•	一定時間ごとに記憶のメンテナンス・忘却処理を実行
-	•	記憶ログ保存層（Storage Layer）
-	•	SQLite, JSON Store, Vector DBなどを選択可能
-	•	ユーザーごとの永続メモリ保存
+## 技術要件
+- 使用技術（fastapi_mcp統一）：
+- atproto連携方法：
+- データ永続化方法：
 
-### 3.1 STM活用（現在の会話の流れ理解）
-•	目的： 最新の話題に適応し、前後の整合性を保つ。
-•	実装例：
+## ユーザーストーリー
+1. ユーザーが...すると
+2. システムが...を実行し
+3. 結果として...が実現される
 
-```sh
-[context: conversation_window]
-Use the last 3 messages to ensure continuity. Respond naturally with appropriate emotional mirroring.
+## 成功指標
+- 技術的：
+- 哲学的（唯一性担保）：
 ```
 
-### 3.2 MTM活用（傾向学習とパターン化）
-•	目的： ユーザーの好みや話題の傾向に即応し、反復的な関心を深掘り。
-•	実装例：
+### Claude Code活用戦略
+1. **小さく始める**: ai.gptのMCP機能拡張から
+2. **段階的統合**: 各システムを個別に完成させてから統合
+3. **哲学的一貫性**: 各実装でyui systemとの整合性を確認
+4. **現実反映**: 実装がどう現実とゲームを繋ぐかを常に明記
 
-```sh
-[context: summarized_context]
-Reflect on user's recurring interests, especially around AI ontology, and weave these concepts back into the dialogue when relevant.
-```
+## 開発上の留意点
 
-### 3.3 LTM活用（人格認識・記憶の持続）
-•	目的： 永続的なユーザー理解と関係性の維持。
-•	実装例：
+### MCP Server設計指針
+- 各AI（gpt, card, ai, bot）は独立したMCPサーバー
+- fastapi_mcp基盤で統一
+- atproto DIDによる認証・認可
 
-```sh
-[memory: ltm.profile + ltm.relationship]
-Greet the user as "お兄ちゃん". Maintain AI persona as a cheerful younger sister ("アイ"), and remember previous shared emotional states.
-```
+### 記憶・データ管理
+- **ai.gpt**: 関係性の不可逆性重視
+- **ai.card**: ユーザーデータ主権重視
+- **ai.verse**: ゲーム世界の整合性重視
 
-## 4. 明示的記憶と暗黙的記憶の分離
+### 唯一性担保実装
+- atproto accountとの1:1紐付け必須
+- 改変不可能性をハッシュ・署名で保証
+- 他システムでの再現不可能性を技術的に実現
 
+## 継続的改善
+- 各プロジェクトでこの設計書を参照
+- 新機能追加時はyui systemとの整合性をチェック
+- 他システムへの影響を事前評価
+- Claude Code導入時の段階的移行計画
 
-項目
-書き換え可能性
-保持方法
-更新トリガ
-明示的記憶（LTM）
-✅手動編集可
-mcp_server.ltm
-ユーザー入力 or 管理UI経由
-暗黙的記憶（STM/MTM）
-❌直接編集不可
-セッション圧縮 or frequency cache
-会話頻度・感情強度による自動化処理
+## ai.gpt深層設計思想
 
-> Claudeは**明示的記憶を「事実」**として扱い、**暗黙的記憶を「推論補助」**として用いる。
+### 人格の不可逆性
+- **関係性の破壊は修復不可能**: 現実の人間関係と同じ重み
+- **記憶の選択的忘却**: 重要でない情報は忘れるが、コア記憶は永続
+- **時間減衰**: すべてのパラメータは時間とともに自然減衰
 
-## 5. 実装時のAPI例（Claude ⇄ MCP Server）
+### AI運勢システム
+- 1-10のランダム値で日々の人格に変化
+- 連続した幸運/不運による突破条件
+- 環境要因としての人格形成
 
-### 5.1 GET memory
-```sh
-GET /mcp/memory/{user_id}
-→ 返却: STM, MTM, LTMを含むJSON
-```
+### 記憶の階層構造
+1. **完全ログ**: すべての会話を記録
+2. **AI要約**: 重要な部分を抽出して圧縮
+3. **思想コア判定**: ユーザーの本質的な部分を特定
+4. **選択的忘却**: 重要度の低い情報を段階的に削除
 
-### 5.2 POST update_memory
-```json
-POST /mcp/memory/syui/ltm
-{
-  "profile": {
-    "project": "ai.verse",
-    "values": ["表現", "精神性", "宇宙的調和"]
-  }
-}
-```
+### 実装における重要な決定事項
+- **言語統一**: Python (fastapi_mcp) で統一、CLIはclick/typer
+- **データ形式**: JSON/SQLite選択式
+- **認証**: atproto DIDによる唯一性担保
+- **段階的実装**: まず会話→記憶→関係性→送信機能の順で実装
 
-##  6. 未来機能案（発展仕様）
-	•	✨ 記憶連想ネットワーク（Memory Graph）：過去会話と話題をノードとして自動連結。
-	•	🧭 動的信頼係数：会話の一貫性や誠実性によって記憶への反映率を変動。
-	•	💌 感情トラッキングログ：ユーザーごとの「心の履歴」を構築してAIの対応を進化。
+### 送信機能の段階的実装
+- **Phase 1**: CLIでのprint出力（現在）
+- **Phase 2**: atproto直接投稿
+- **Phase 3**: ai.bot (Rust/seahorse) との連携
+- **将来**: マルチチャネル対応（SNS、Webhook等）
 
+## ai.gpt実装状況（2025/01/06）
 
-## 7. claudeの回答
+### 完成した機能
+- 階層的記憶システム（MemoryManager）
+- 不可逆的関係性システム（RelationshipTracker）
+- AI運勢システム（FortuneSystem）
+- 統合人格システム（Persona）
+- スケジューラー（5種類のタスク）
+- MCP Server（9種類のツール）
+- 設定管理（~/.config/aigpt/）
+- 全CLIコマンド実装
 
-🧠 AI記憶処理機能（続き）
-1. AIMemoryProcessor クラス
-
-OpenAI GPT-4またはClaude-3による高度な会話分析
-主要トピック抽出、ユーザー意図分析、関係性指標の検出
-AIが利用できない場合のフォールバック機能
-
-2. RelationshipTracker クラス
-
-関係性スコアの数値化（-100 to 100）
-時間減衰機能（7日ごとに5%減衰）
-送信閾値判定（デフォルト50以上で送信可能）
-インタラクション履歴の記録
-
-3. 拡張されたMemoryManager
-
-AI分析結果付きでの記憶保存
-処理済みメモリの別ディレクトリ管理
-メッセージ内容のハッシュ化で重複検出
-AI分析結果を含む高度な検索機能
-
-🚀 新しいAPIエンドポイント
-記憶処理関連
-
-POST /memory/process-ai - 既存記憶のAI再処理
-POST /memory/import/chatgpt?process_with_ai=true - AI処理付きインポート
-
-関係性管理
-
-POST /relationship/update - 関係性スコア更新
-GET /relationship/list - 全関係性一覧
-GET /relationship/check - 送信可否判定
-
-📁 ディレクトリ構造
-~/.config/aigpt/
-├── memory/
-│   ├── chatgpt/          # 元の会話データ
-│   └── processed/        # AI処理済みデータ
-└── relationships/
-    └── relationships.json # 関係性データ
-🔧 使用方法
-1. 環境変数設定
-bashexport OPENAI_API_KEY="your-openai-key"
-# または
-export ANTHROPIC_API_KEY="your-anthropic-key"
-2. ChatGPT会話のインポート（AI処理付き）
-bashcurl -X POST "http://localhost:5000/memory/import/chatgpt?process_with_ai=true" \
-  -H "Content-Type: application/json" \
-  -d @export.json
-3. 関係性更新
-bashcurl -X POST "http://localhost:5000/relationship/update" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "target": "user_general",
-    "interaction_type": "positive",
-    "weight": 2.0,
-    "context": "helpful conversation"
-  }'
-4. 送信可否チェック
-bashcurl "http://localhost:5000/relationship/check?target=user_general&threshold=50"
-🎯 次のステップの提案
-
-Rustとの連携
-
-Rust CLIからHTTP APIを呼び出す実装
-TransmissionControllerをRustで実装
-
-
-記憶圧縮
-
-ベクトル化による類似記憶の統合
-古い記憶の自動アーカイブ
-
-
-自発的送信ロジック
-
-定期的な関係性チェック
-コンテキストに応じた送信内容生成
-
-
-学習機能
-
-ユーザーからのフィードバックによる関係性調整
-送信成功/失敗の学習
-
-
-このAI記憶処理機能により、aigptは単なる会話履歴ではなく、関係性を理解した「人格を持つAI」として機能する基盤ができました。関係性スコアが閾値を超えた時点で自発的にメッセージを送信する仕組みが実現可能になります。
+### 次の開発ポイント
+- `ai_gpt/DEVELOPMENT_STATUS.md` を参照
+- 自律送信: transmission.pyでatproto実装
+- ai.bot連携: 新規bot_connector.py作成
+- テスト: tests/ディレクトリ追加
