@@ -102,7 +102,7 @@ class OpenAIProvider:
         config = Config()
         self.api_key = api_key or config.get_api_key("openai") or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
-            raise ValueError("OpenAI API key not provided. Set it with: ai-gpt config set providers.openai.api_key YOUR_KEY")
+            raise ValueError("OpenAI API key not provided. Set it with: aigpt config set providers.openai.api_key YOUR_KEY")
         self.client = OpenAI(api_key=self.api_key)
         self.logger = logging.getLogger(__name__)
     

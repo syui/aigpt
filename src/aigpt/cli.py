@@ -9,7 +9,7 @@ from rich.panel import Panel
 from datetime import datetime, timedelta
 import subprocess
 import shlex
-from prompt_toolkit import prompt
+from prompt_toolkit import prompt as ptk_prompt
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
@@ -228,7 +228,8 @@ def server(
     port: int = typer.Option(8000, "--port", "-p", help="Server port"),
     data_dir: Optional[Path] = typer.Option(None, "--data-dir", "-d", help="Data directory"),
     model: str = typer.Option("qwen2.5", "--model", "-m", help="AI model to use"),
-    provider: str = typer.Option("ollama", "--provider", help="AI provider (ollama/openai)")
+    provider: str = typer.Option("ollama", "--provider", help="AI provider (ollama/openai)"),
+    enable_card: bool = typer.Option(False, "--enable-card", help="Enable ai.card integration")
 ):
     """Run MCP server for AI integration"""
     import uvicorn
@@ -239,15 +240,16 @@ def server(
     data_dir.mkdir(parents=True, exist_ok=True)
     
     # Create MCP server
-    mcp_server = AIGptMcpServer(data_dir)
-    app_instance = mcp_server.get_server().get_app()
+    mcp_server = AIGptMcpServer(data_dir, enable_card_integration=enable_card)
+    app_instance = mcp_server.app
     
     console.print(Panel(
         f"[cyan]Starting ai.gpt MCP Server[/cyan]\n\n"
         f"Host: {host}:{port}\n"
         f"Provider: {provider}\n"
         f"Model: {model}\n"
-        f"Data: {data_dir}",
+        f"Data: {data_dir}\n"
+        f"Card Integration: {'✓ Enabled' if enable_card else '✗ Disabled'}",
         title="MCP Server",
         border_style="green"
     ))
@@ -410,12 +412,22 @@ def shell(
         border_style="green"
     ))
     
-    # Command completer
-    commands = ['help', 'exit', 'quit', 'chat', 'status', 'clear', 'fortune', 'relationships']
-    completer = WordCompleter(commands)
+    # Command completer with shell commands
+    builtin_commands = ['help', 'exit', 'quit', 'chat', 'status', 'clear', 'fortune', 'relationships', 'load']
+    
+    # Add common shell commands
+    shell_commands = ['ls', 'cd', 'pwd', 'cat', 'echo', 'grep', 'find', 'mkdir', 'rm', 'cp', 'mv', 
+                      'git', 'python', 'pip', 'npm', 'node', 'cargo', 'rustc', 'docker', 'kubectl']
+    
+    # AI-specific commands
+    ai_commands = ['analyze', 'generate', 'explain', 'optimize', 'refactor', 'test', 'document']
+    
+    all_commands = builtin_commands + ['!' + cmd for cmd in shell_commands] + ai_commands
+    completer = WordCompleter(all_commands, ignore_case=True)
     
     # History file
-    history_file = data_dir / "shell_history.txt"
+    actual_data_dir = data_dir if data_dir else DEFAULT_DATA_DIR
+    history_file = actual_data_dir / "shell_history.txt"
     history = FileHistory(str(history_file))
     
     # Main shell loop
@@ -424,7 +436,7 @@ def shell(
     while True:
         try:
             # Get input with completion
-            user_input = prompt(
+            user_input = ptk_prompt(
                 "ai.shell> ",
                 completer=completer,
                 history=history,
@@ -450,7 +462,12 @@ def shell(
                     "  status            - Show AI status\n"
                     "  fortune           - Check AI fortune\n"
                     "  relationships     - List all relationships\n"
-                    "  clear             - Clear the screen\n\n"
+                    "  clear             - Clear the screen\n"
+                    "  load              - Load aishell.md project file\n\n"
+                    "[cyan]AI Commands:[/cyan]\n"
+                    "  analyze <file>    - Analyze a file with AI\n"
+                    "  generate <desc>   - Generate code from description\n"
+                    "  explain <topic>   - Get AI explanation\n\n"
                     "You can also type any message to chat with AI\n"
                     "Use Tab for command completion",
                     title="Help",
@@ -511,6 +528,68 @@ def shell(
                         console.print(f"  {user_id[:16]}... - {rel.status.value} ({rel.score:.2f})")
                 else:
                     console.print("[yellow]No relationships yet[/yellow]")
+            
+            # Load aishell.md command
+            elif user_input.lower() in ['load', 'load aishell.md', 'project']:
+                # Try to find and load aishell.md
+                search_paths = [
+                    Path.cwd() / "aishell.md",
+                    Path.cwd() / "docs" / "aishell.md",
+                    actual_data_dir.parent / "aishell.md",
+                    Path.cwd() / "claude.md",  # Also check for claude.md
+                ]
+                
+                loaded = False
+                for path in search_paths:
+                    if path.exists():
+                        console.print(f"[cyan]Loading project file: {path}[/cyan]")
+                        with open(path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        
+                        # Process with AI to understand project
+                        load_prompt = f"I've loaded the project specification. Please analyze it and understand the project goals:\n\n{content[:3000]}"
+                        response, _ = persona.process_interaction(current_user, load_prompt, ai_provider)
+                        console.print(f"\n[green]Project loaded successfully![/green]")
+                        console.print(f"[cyan]AI Understanding:[/cyan]\n{response}")
+                        loaded = True
+                        break
+                
+                if not loaded:
+                    console.print("[yellow]No aishell.md or claude.md found in project.[/yellow]")
+                    console.print("Create aishell.md to define project goals and AI instructions.")
+            
+            # AI-powered commands
+            elif user_input.lower().startswith('analyze '):
+                # Analyze file or code
+                target = user_input[8:].strip()
+                if os.path.exists(target):
+                    console.print(f"[cyan]Analyzing {target}...[/cyan]")
+                    with open(target, 'r') as f:
+                        content = f.read()
+                    
+                    analysis_prompt = f"Analyze this file and provide insights:\n\n{content[:2000]}"
+                    response, _ = persona.process_interaction(current_user, analysis_prompt, ai_provider)
+                    console.print(f"\n[cyan]Analysis:[/cyan]\n{response}")
+                else:
+                    console.print(f"[red]File not found: {target}[/red]")
+            
+            elif user_input.lower().startswith('generate '):
+                # Generate code
+                gen_prompt = user_input[9:].strip()
+                if gen_prompt:
+                    console.print("[cyan]Generating code...[/cyan]")
+                    full_prompt = f"Generate code for: {gen_prompt}. Provide clean, well-commented code."
+                    response, _ = persona.process_interaction(current_user, full_prompt, ai_provider)
+                    console.print(f"\n[cyan]Generated Code:[/cyan]\n{response}")
+            
+            elif user_input.lower().startswith('explain '):
+                # Explain code or concept
+                topic = user_input[8:].strip()
+                if topic:
+                    console.print(f"[cyan]Explaining {topic}...[/cyan]")
+                    full_prompt = f"Explain this in detail: {topic}"
+                    response, _ = persona.process_interaction(current_user, full_prompt, ai_provider)
+                    console.print(f"\n[cyan]Explanation:[/cyan]\n{response}")
             
             # Chat command or direct message
             else:

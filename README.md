@@ -12,7 +12,9 @@
 ## インストール
 
 ```bash
-cd ai_gpt
+# Python仮想環境を推奨
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -e .
 ```
 
@@ -93,6 +95,29 @@ aigpt relationships
 - 時間経過で自然減衰
 - 大きなネガティブな相互作用で破壊される可能性
 
+## ai.shell統合
+
+インタラクティブシェルモード（Claude Code風の体験）：
+
+```bash
+aigpt shell
+
+# シェル内で使えるコマンド:
+# help              - コマンド一覧
+# !<command>        - シェルコマンド実行（例: !ls, !pwd）
+# analyze <file>    - ファイルをAIで分析
+# generate <desc>   - コード生成
+# explain <topic>   - 概念の説明
+# load              - aishell.mdプロジェクトファイルを読み込み
+# status            - AI状態確認
+# fortune           - AI運勢確認
+# clear             - 画面クリア
+# exit/quit         - 終了
+
+# 通常のメッセージも送れます
+ai.shell> こんにちは、今日は何をしましょうか？
+```
+
 ## MCP Server
 
 ### サーバー起動
@@ -105,6 +130,9 @@ aigpt server --model gpt-4o-mini --provider openai
 
 # カスタムポート
 aigpt server --port 8080
+
+# ai.card統合を有効化
+aigpt server --enable-card
 ```
 
 ### AIプロバイダーを使った会話
@@ -120,6 +148,7 @@ aigpt chat "did:plc:xxxxx" "今日の調子はどう？" --provider openai --mod
 
 サーバーが起動すると、以下のツールがAIから利用可能になります：
 
+**ai.gpt ツール:**
 - `get_memories` - アクティブな記憶を取得
 - `get_relationship` - 特定ユーザーとの関係を取得
 - `get_all_relationships` - すべての関係を取得
@@ -129,6 +158,20 @@ aigpt chat "did:plc:xxxxx" "今日の調子はどう？" --provider openai --mod
 - `get_fortune` - 今日の運勢を取得
 - `summarize_memories` - 記憶を要約
 - `run_maintenance` - メンテナンス実行
+
+**ai.shell ツール:**
+- `execute_command` - シェルコマンド実行
+- `analyze_file` - ファイルのAI分析
+- `write_file` - ファイル書き込み
+- `read_project_file` - プロジェクトファイル読み込み
+- `list_files` - ファイル一覧
+
+**ai.card ツール（--enable-card時）:**
+- `get_user_cards` - ユーザーのカード取得
+- `draw_card` - カードを引く（ガチャ）
+- `get_card_details` - カード詳細情報
+- `sync_cards_atproto` - atproto同期
+- `analyze_card_collection` - コレクション分析
 
 ## 環境変数
 

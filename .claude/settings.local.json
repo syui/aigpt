@@ -4,7 +4,17 @@
       "Bash(mv:*)",
       "Bash(mkdir:*)",
       "Bash(chmod:*)",
-      "Bash(git submodule:*)"
+      "Bash(git submodule:*)",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
+      "Bash(/Users/syui/.config/syui/ai/gpt/venv/bin/aigpt shell)",
+      "Bash(/Users/syui/.config/syui/ai/gpt/venv/bin/aigpt server --model qwen2.5-coder:7b --port 8001)",
+      "Bash(/Users/syui/.config/syui/ai/gpt/venv/bin/python -c \"import fastapi_mcp; help(fastapi_mcp.FastApiMCP)\")",
+      "Bash(find:*)",
+      "Bash(/Users/syui/.config/syui/ai/gpt/venv/bin/pip install -e .)",
+      "Bash(/Users/syui/.config/syui/ai/gpt/venv/bin/aigpt fortune)",
+      "Bash(lsof:*)",
+      "Bash(/Users/syui/.config/syui/ai/gpt/venv/bin/python -c \"\nfrom src.aigpt.mcp_server import AIGptMcpServer\nfrom pathlib import Path\nimport uvicorn\n\ndata_dir = Path.home() / '.config' / 'syui' / 'ai' / 'gpt' / 'data'\ndata_dir.mkdir(parents=True, exist_ok=True)\n\ntry:\n    server = AIGptMcpServer(data_dir)\n    print('MCP Server created successfully')\n    print('Available endpoints:', [route.path for route in server.app.routes])\nexcept Exception as e:\n    print('Error:', e)\n    import traceback\n    traceback.print_exc()\n\")"
     ],
     "deny": []
   }

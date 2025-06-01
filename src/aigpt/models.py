@@ -1,6 +1,6 @@
 """Data models for ai.gpt system"""
 
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, Dict, List, Any
 from enum import Enum
 from pydantic import BaseModel, Field
@@ -52,7 +52,7 @@ class Relationship(BaseModel):
 
 class AIFortune(BaseModel):
     """Daily AI fortune affecting personality"""
-    date: datetime.date
+    date: date
     fortune_value: int = Field(ge=1, le=10)
     consecutive_good: int = 0
     consecutive_bad: int = 0

@@ -2,10 +2,12 @@ README.md
 pyproject.toml
 src/aigpt/__init__.py
 src/aigpt/ai_provider.py
+src/aigpt/card_integration.py
 src/aigpt/cli.py
 src/aigpt/config.py
 src/aigpt/fortune.py
 src/aigpt/mcp_server.py
+src/aigpt/mcp_server_simple.py
 src/aigpt/memory.py
 src/aigpt/models.py
 src/aigpt/persona.py

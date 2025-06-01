@@ -4,3 +4,4 @@ output.json
 config/*.db
 mcp/scripts/__*
 data
+__pycache__

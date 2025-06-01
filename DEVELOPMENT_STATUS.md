@@ -1,4 +1,4 @@
-# ai.gpt 開発状況 (2025/01/06)
+# ai.gpt 開発状況 (2025/01/06 更新)
 
 ## 現在の状態
 
@@ -20,6 +20,7 @@
    - `config` - 設定管理
    - `schedule` - スケジューラー管理
    - `server` - MCP Server起動
+   - `shell` - インタラクティブシェル（ai.shell統合）
 
 3. **データ管理**
    - 保存場所: `~/.config/aigpt/`
@@ -32,8 +33,16 @@
    - バックグラウンド実行可能
 
 5. **MCP Server**
-   - 9種類のツールを公開
+   - 14種類のツールを公開（ai.gpt: 9種類、ai.shell: 5種類）
    - Claude Desktopなどから利用可能
+   - ai.card統合オプション（--enable-card）
+
+6. **ai.shell統合**
+   - インタラクティブシェルモード
+   - シェルコマンド実行（!command形式）
+   - AIコマンド（analyze, generate, explain）
+   - aishell.md読み込み機能
+   - 高度な補完機能（prompt-toolkit）
 
 ## 🚧 未実装・今後の課題
 
@@ -82,14 +91,14 @@
 
 ### 1. 自律送信を実装する場合
 ```python
-# src/ai_gpt/transmission.py を編集
+# src/aigpt/transmission.py を編集
 # atproto-python ライブラリを追加
 # _handle_transmission_check() メソッドを更新
 ```
 
 ### 2. ai.botと連携する場合
 ```python
-# 新規ファイル: src/ai_gpt/bot_connector.py
+# 新規ファイル: src/aigpt/bot_connector.py
 # ai.botのAPIエンドポイントにHTTPリクエスト
 ```
 
@@ -97,6 +106,13 @@
 ```bash
 # tests/ディレクトリを作成
 # pytest設定を追加
+```
+
+### 4. ai.shellの問題を修正する場合
+```python
+# src/aigpt/cli.py の shell コマンド
+# prompt-toolkitのターミナル検出問題を回避
+# 代替: simple input() または click.prompt()
 ```
 
 ## 設計思想の要点（AI向け）
@@ -113,5 +129,6 @@
 - **AI統合**: Ollama (ローカル) / OpenAI API
 - **データ形式**: JSON（将来的にSQLite検討）
 - **認証**: atproto DID（未実装だが設計済み）
+- **統合**: ai.shell（Rust版から移行）、ai.card（MCP連携）
 
 このファイルを参照することで、次回の開発がスムーズに始められます。
