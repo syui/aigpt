@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 # ディレクトリ設定
-BASE_DIR = Path.home() / ".config" / "aigpt"
+BASE_DIR = Path.home() / ".config" / "syui" / "ai" / "gpt"
 MEMORY_DIR = BASE_DIR / "memory"
 SUMMARY_DIR = MEMORY_DIR / "summary"
 

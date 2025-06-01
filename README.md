@@ -21,63 +21,63 @@ pip install -e .
 ### APIキーの設定
 ```bash
 # OpenAI APIキー
-ai-gpt config set providers.openai.api_key sk-xxxxx
+aigpt config set providers.openai.api_key sk-xxxxx
 
 # atproto認証情報（将来の自動投稿用）
-ai-gpt config set atproto.handle your.handle
-ai-gpt config set atproto.password your-password
+aigpt config set atproto.handle your.handle
+aigpt config set atproto.password your-password
 
 # 設定一覧を確認
-ai-gpt config list
+aigpt config list
 ```
 
 ### データ保存場所
-- 設定: `~/.config/aigpt/config.json`
-- データ: `~/.config/aigpt/data/`
+- 設定: `~/.config/syui/ai/gpt/config.json`
+- データ: `~/.config/syui/ai/gpt/data/`
 
 ## 使い方
 
 ### 会話する
 ```bash
-ai-gpt chat "did:plc:xxxxx" "こんにちは、今日はどんな気分？"
+aigpt chat "did:plc:xxxxx" "こんにちは、今日はどんな気分？"
 ```
 
 ### ステータス確認
 ```bash
 # AI全体の状態
-ai-gpt status
+aigpt status
 
 # 特定ユーザーとの関係
-ai-gpt status "did:plc:xxxxx"
+aigpt status "did:plc:xxxxx"
 ```
 
 ### 今日の運勢
 ```bash
-ai-gpt fortune
+aigpt fortune
 ```
 
 ### 自律送信チェック
 ```bash
 # ドライラン（確認のみ）
-ai-gpt transmit
+aigpt transmit
 
 # 実行
-ai-gpt transmit --execute
+aigpt transmit --execute
 ```
 
 ### 日次メンテナンス
 ```bash
-ai-gpt maintenance
+aigpt maintenance
 ```
 
 ### 関係一覧
 ```bash
-ai-gpt relationships
+aigpt relationships
 ```
 
 ## データ構造
 
-デフォルトでは `~/.ai_gpt/` に以下のファイルが保存されます：
+デフォルトでは `~/.config/syui/ai/gpt/` に以下のファイルが保存されます：
 
 - `memories.json` - 会話記憶
 - `conversations.json` - 会話ログ
@@ -98,22 +98,22 @@ ai-gpt relationships
 ### サーバー起動
 ```bash
 # Ollamaを使用（デフォルト）
-ai-gpt server --model qwen2.5 --provider ollama
+aigpt server --model qwen2.5 --provider ollama
 
 # OpenAIを使用
-ai-gpt server --model gpt-4o-mini --provider openai
+aigpt server --model gpt-4o-mini --provider openai
 
 # カスタムポート
-ai-gpt server --port 8080
+aigpt server --port 8080
 ```
 
 ### AIプロバイダーを使った会話
 ```bash
 # Ollamaで会話
-ai-gpt chat "did:plc:xxxxx" "こんにちは" --provider ollama --model qwen2.5
+aigpt chat "did:plc:xxxxx" "こんにちは" --provider ollama --model qwen2.5
 
 # OpenAIで会話
-ai-gpt chat "did:plc:xxxxx" "今日の調子はどう？" --provider openai --model gpt-4o-mini
+aigpt chat "did:plc:xxxxx" "今日の調子はどう？" --provider openai --model gpt-4o-mini
 ```
 
 ### MCP Tools
@@ -145,42 +145,42 @@ cp .env.example .env
 
 ```bash
 # 6時間ごとに送信チェック
-ai-gpt schedule add transmission_check "0 */6 * * *" --provider ollama --model qwen2.5
+aigpt schedule add transmission_check "0 */6 * * *" --provider ollama --model qwen2.5
 
 # 30分ごとに送信チェック（インターバル形式）
-ai-gpt schedule add transmission_check "30m"
+aigpt schedule add transmission_check "30m"
 
 # 毎日午前3時にメンテナンス
-ai-gpt schedule add maintenance "0 3 * * *"
+aigpt schedule add maintenance "0 3 * * *"
 
 # 1時間ごとに関係性減衰
-ai-gpt schedule add relationship_decay "1h"
+aigpt schedule add relationship_decay "1h"
 
 # 毎週月曜日に記憶要約
-ai-gpt schedule add memory_summary "0 0 * * MON"
+aigpt schedule add memory_summary "0 0 * * MON"
 ```
 
 ### タスク管理
 
 ```bash
 # タスク一覧
-ai-gpt schedule list
+aigpt schedule list
 
 # タスクを無効化
-ai-gpt schedule disable --task-id transmission_check_1234567890
+aigpt schedule disable --task-id transmission_check_1234567890
 
 # タスクを有効化
-ai-gpt schedule enable --task-id transmission_check_1234567890
+aigpt schedule enable --task-id transmission_check_1234567890
 
 # タスクを削除
-ai-gpt schedule remove --task-id transmission_check_1234567890
+aigpt schedule remove --task-id transmission_check_1234567890
 ```
 
 ### スケジューラーデーモンの起動
 
 ```bash
 # バックグラウンドでスケジューラーを実行
-ai-gpt schedule run
+aigpt schedule run
 ```
 
 ### スケジュール形式

@@ -1,4 +1,4 @@
-# syuiエコシステム統合設計書
+# エコシステム統合設計書
 
 ## 中核思想
 - **存在子理論**: この世界で最も小さいもの（存在子/ai）の探求
@@ -24,6 +24,53 @@
     ├── at system (atproto/分散SNS)
     ├── yui system (唯一性担保)
     └── ai system (存在属性)
+```
+
+## 名前規則
+
+名前規則は他のprojectと全て共通しています。exampleを示しますので、このルールに従ってください。
+
+ここでは`ai.os`の場合の名前規則の例を記述します。
+
+name: ai.os
+
+**[ "package", "code", "command" ]**: aios
+**[ "dir", "url" ]**: ai/os
+**[ "domain", "json" ]**: ai.os
+
+```sh
+$ curl -sL https://git.syui.ai/ai/ai/raw/branch/main/ai.json|jq .ai.os
+{ "type": "os" }
+```
+
+```json
+{
+  "ai": {
+    "os":{}
+  }
+}
+```
+
+他のprojectも同じ名前規則を採用します。`ai.gpt`ならpackageは`aigpt`です。
+
+## config(設定ファイル, env, 環境依存)
+
+`config`を置く場所は統一されており、各projectの名前規則の`dir`項目を使用します。例えば、aiosの場合は`~/.config/syui/ai/os/`以下となります。pythonなどを使用する場合、`python -m venv`などでこのpackage config dirに環境を構築して実行するようにしてください。
+
+domain形式を採用して、私は各projectを`git.syui.ai/ai`にhostしていますから、`~/.config/syui/ai`とします。
+
+```sh
+[syui.ai]
+syui/ai
+```
+
+```sh
+# example
+~/.config/syui/ai
+    ├── card
+    ├── gpt
+    ├── os
+    └── shell
 ```
 
 ## 各システム詳細
@@ -265,7 +312,7 @@ ai.card (iOS,Web,API) ←→ ai.verse (UEゲーム世界)
 - 統合人格システム（Persona）
 - スケジューラー（5種類のタスク）
 - MCP Server（9種類のツール）
-- 設定管理（~/.config/aigpt/）
+- 設定管理（~/.config/syui/ai/gpt/）
 - 全CLIコマンド実装
 
 ### 次の開発ポイント
@@ -273,3 +320,7 @@ ai.card (iOS,Web,API) ←→ ai.verse (UEゲーム世界)
 - 自律送信: transmission.pyでatproto実装
 - ai.bot連携: 新規bot_connector.py作成
 - テスト: tests/ディレクトリ追加
+
+# footer
+
+© syui
