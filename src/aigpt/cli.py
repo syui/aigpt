@@ -7,6 +7,12 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from datetime import datetime, timedelta
+import subprocess
+import shlex
+from prompt_toolkit import prompt
+from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 
 from .persona import Persona
 from .transmission import TransmissionController
@@ -367,6 +373,176 @@ def schedule(
     else:
         console.print(f"[red]Unknown action: {action}[/red]")
         console.print("Valid actions: add, list, enable, disable, remove, run")
+
+
+@app.command()
+def shell(
+    data_dir: Optional[Path] = typer.Option(None, "--data-dir", "-d", help="Data directory"),
+    model: Optional[str] = typer.Option("qwen2.5", "--model", "-m", help="AI model to use"),
+    provider: Optional[str] = typer.Option("ollama", "--provider", help="AI provider (ollama/openai)")
+):
+    """Interactive shell mode (ai.shell)"""
+    persona = get_persona(data_dir)
+    
+    # Create AI provider
+    ai_provider = None
+    if provider and model:
+        try:
+            ai_provider = create_ai_provider(provider, model)
+            console.print(f"[dim]Using {provider} with model {model}[/dim]\n")
+        except Exception as e:
+            console.print(f"[yellow]Warning: Could not create AI provider: {e}[/yellow]")
+            console.print("[yellow]Falling back to simple responses[/yellow]\n")
+    
+    # Welcome message
+    console.print(Panel(
+        "[cyan]Welcome to ai.shell[/cyan]\n\n"
+        "Interactive AI-powered shell with command execution\n\n"
+        "Commands:\n"
+        "  help - Show available commands\n"
+        "  exit/quit - Exit shell\n"
+        "  !<command> - Execute shell command\n"
+        "  chat <message> - Chat with AI\n"
+        "  status - Show AI status\n"
+        "  clear - Clear screen\n\n"
+        "Type any message to interact with AI",
+        title="ai.shell",
+        border_style="green"
+    ))
+    
+    # Command completer
+    commands = ['help', 'exit', 'quit', 'chat', 'status', 'clear', 'fortune', 'relationships']
+    completer = WordCompleter(commands)
+    
+    # History file
+    history_file = data_dir / "shell_history.txt"
+    history = FileHistory(str(history_file))
+    
+    # Main shell loop
+    current_user = "shell_user"  # Default user for shell sessions
+    
+    while True:
+        try:
+            # Get input with completion
+            user_input = prompt(
+                "ai.shell> ",
+                completer=completer,
+                history=history,
+                auto_suggest=AutoSuggestFromHistory()
+            ).strip()
+            
+            if not user_input:
+                continue
+            
+            # Exit commands
+            if user_input.lower() in ['exit', 'quit']:
+                console.print("[cyan]Goodbye![/cyan]")
+                break
+            
+            # Help command
+            elif user_input.lower() == 'help':
+                console.print(Panel(
+                    "[cyan]ai.shell Commands:[/cyan]\n\n"
+                    "  help              - Show this help message\n"
+                    "  exit/quit         - Exit the shell\n"
+                    "  !<command>        - Execute a shell command\n"
+                    "  chat <message>    - Explicitly chat with AI\n"
+                    "  status            - Show AI status\n"
+                    "  fortune           - Check AI fortune\n"
+                    "  relationships     - List all relationships\n"
+                    "  clear             - Clear the screen\n\n"
+                    "You can also type any message to chat with AI\n"
+                    "Use Tab for command completion",
+                    title="Help",
+                    border_style="yellow"
+                ))
+            
+            # Clear command
+            elif user_input.lower() == 'clear':
+                console.clear()
+            
+            # Shell command execution
+            elif user_input.startswith('!'):
+                cmd = user_input[1:].strip()
+                if cmd:
+                    try:
+                        # Execute command
+                        result = subprocess.run(
+                            shlex.split(cmd),
+                            capture_output=True,
+                            text=True,
+                            shell=False
+                        )
+                        
+                        if result.stdout:
+                            console.print(result.stdout.rstrip())
+                        if result.stderr:
+                            console.print(f"[red]{result.stderr.rstrip()}[/red]")
+                        
+                        if result.returncode != 0:
+                            console.print(f"[red]Command exited with code {result.returncode}[/red]")
+                    except FileNotFoundError:
+                        console.print(f"[red]Command not found: {cmd.split()[0]}[/red]")
+                    except Exception as e:
+                        console.print(f"[red]Error executing command: {e}[/red]")
+            
+            # Status command
+            elif user_input.lower() == 'status':
+                state = persona.get_current_state()
+                console.print(f"\nMood: {state.current_mood}")
+                console.print(f"Fortune: {state.fortune.fortune_value}/10")
+                
+                rel = persona.relationships.get_or_create_relationship(current_user)
+                console.print(f"\nRelationship Status: {rel.status.value}")
+                console.print(f"Score: {rel.score:.2f} / {rel.threshold}")
+            
+            # Fortune command
+            elif user_input.lower() == 'fortune':
+                fortune = persona.fortune_system.get_today_fortune()
+                fortune_bar = "🌟" * fortune.fortune_value + "☆" * (10 - fortune.fortune_value)
+                console.print(f"\n{fortune_bar}")
+                console.print(f"Today's Fortune: {fortune.fortune_value}/10")
+            
+            # Relationships command
+            elif user_input.lower() == 'relationships':
+                if persona.relationships.relationships:
+                    console.print("\n[cyan]Relationships:[/cyan]")
+                    for user_id, rel in persona.relationships.relationships.items():
+                        console.print(f"  {user_id[:16]}... - {rel.status.value} ({rel.score:.2f})")
+                else:
+                    console.print("[yellow]No relationships yet[/yellow]")
+            
+            # Chat command or direct message
+            else:
+                # Remove 'chat' prefix if present
+                if user_input.lower().startswith('chat '):
+                    message = user_input[5:].strip()
+                else:
+                    message = user_input
+                
+                if message:
+                    # Process interaction with AI
+                    response, relationship_delta = persona.process_interaction(
+                        current_user, message, ai_provider
+                    )
+                    
+                    # Display response
+                    console.print(f"\n[cyan]AI:[/cyan] {response}")
+                    
+                    # Show relationship change if significant
+                    if abs(relationship_delta) >= 0.1:
+                        if relationship_delta > 0:
+                            console.print(f"[green](+{relationship_delta:.2f} relationship)[/green]")
+                        else:
+                            console.print(f"[red]({relationship_delta:.2f} relationship)[/red]")
+        
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Use 'exit' or 'quit' to leave the shell[/yellow]")
+        except EOFError:
+            console.print("\n[cyan]Goodbye![/cyan]")
+            break
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
 
 
 @app.command()

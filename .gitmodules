@@ -1,3 +1,7 @@
 [submodule "shell"]
 	path = shell
 	url = git@git.syui.ai:ai/shell
+[submodule "card"]
+	path = card
+	url = git@git.syui.ai:ai/card
+	branch = claude

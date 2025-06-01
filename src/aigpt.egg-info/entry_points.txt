@@ -1,0 +1,2 @@
+[console_scripts]
+aigpt = aigpt.cli:app
