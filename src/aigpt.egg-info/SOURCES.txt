@@ -11,6 +11,7 @@ src/aigpt/mcp_server_simple.py
 src/aigpt/memory.py
 src/aigpt/models.py
 src/aigpt/persona.py
+src/aigpt/project_manager.py
 src/aigpt/relationship.py
 src/aigpt/scheduler.py
 src/aigpt/transmission.py
