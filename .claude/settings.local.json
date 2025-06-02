@@ -14,7 +14,17 @@
       "Bash(/Users/syui/.config/syui/ai/gpt/venv/bin/pip install -e .)",
       "Bash(/Users/syui/.config/syui/ai/gpt/venv/bin/aigpt fortune)",
       "Bash(lsof:*)",
-      "Bash(/Users/syui/.config/syui/ai/gpt/venv/bin/python -c \"\nfrom src.aigpt.mcp_server import AIGptMcpServer\nfrom pathlib import Path\nimport uvicorn\n\ndata_dir = Path.home() / '.config' / 'syui' / 'ai' / 'gpt' / 'data'\ndata_dir.mkdir(parents=True, exist_ok=True)\n\ntry:\n    server = AIGptMcpServer(data_dir)\n    print('MCP Server created successfully')\n    print('Available endpoints:', [route.path for route in server.app.routes])\nexcept Exception as e:\n    print('Error:', e)\n    import traceback\n    traceback.print_exc()\n\")"
+      "Bash(/Users/syui/.config/syui/ai/gpt/venv/bin/python -c \"\nfrom src.aigpt.mcp_server import AIGptMcpServer\nfrom pathlib import Path\nimport uvicorn\n\ndata_dir = Path.home() / '.config' / 'syui' / 'ai' / 'gpt' / 'data'\ndata_dir.mkdir(parents=True, exist_ok=True)\n\ntry:\n    server = AIGptMcpServer(data_dir)\n    print('MCP Server created successfully')\n    print('Available endpoints:', [route.path for route in server.app.routes])\nexcept Exception as e:\n    print('Error:', e)\n    import traceback\n    traceback.print_exc()\n\")",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(python:*)",
+      "Bash(RELOAD=false ./start_server.sh)",
+      "Bash(sed:*)",
+      "Bash(curl:*)",
+      "Bash(~/.config/syui/ai/card/venv/bin/pip install greenlet)",
+      "Bash(~/.config/syui/ai/card/venv/bin/python init_db.py)",
+      "Bash(sqlite3:*)"
     ],
     "deny": []
   }

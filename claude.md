@@ -321,6 +321,26 @@ ai.card (iOS,Web,API) ←→ ai.verse (UEゲーム世界)
 - ai.bot連携: 新規bot_connector.py作成
 - テスト: tests/ディレクトリ追加
 
+## ai.card実装状況（2025/01/06）
+
+### 完成した機能
+- 独立MCPサーバー実装（FastAPI + fastapi-mcp）
+- SQLiteデータベース統合
+- ガチャシステム・カード管理機能
+- 9種類のMCPツール公開
+- 仮想環境・起動スクリプト整備
+
+### 現在の課題
+- atproto SessionString API変更対応
+- PostgreSQL依存関係（Docker化で解決予定）
+- supabase httpxバージョン競合
+
+### 開発時の作業分担
+- **ai.gptで起動**: MCP/バックエンド作業（API、データベース）
+- **ai.cardで起動**: iOS/Web作業（UI実装、フロントエンド）
+
+詳細は `./card/claude.md` を参照
+
 # footer
 
 © syui
