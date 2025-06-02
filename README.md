@@ -327,13 +327,26 @@ ai.shell> explain async/await in Python
 
 ## MCP Server統合アーキテクチャ
 
-### ai.gpt統合サーバー
+### ai.gpt統合サーバー（簡素化設計）
 ```bash
-# ai.gpt統合サーバー起動（port 8001）
-aigpt server --model qwen2.5 --provider ollama --port 8001
+# シンプルなサーバー起動（config.jsonから自動設定読み込み）
+aigpt server
 
-# OpenAIを使用
-aigpt server --model gpt-4o-mini --provider openai --port 8001
+# カスタム設定での起動
+aigpt server --host localhost --port 8001
+```
+
+**重要**: MCP function callingは**OpenAIプロバイダーでのみ対応**
+- OpenAI GPT-4o-mini/GPT-4でfunction calling機能が利用可能
+- Ollamaはシンプルなchat APIのみ（MCPツール非対応）
+
+### MCP統合の動作条件
+```bash
+# MCP function calling対応（推奨）
+aigpt conv test_user --provider openai --model gpt-4o-mini
+
+# 通常の会話のみ（MCPツール非対応）
+aigpt conv test_user --provider ollama --model qwen3
 ```
 
 ### ai.card独立サーバー
@@ -344,43 +357,45 @@ source ~/.config/syui/ai/card/venv/bin/activate
 uvicorn app.main:app --port 8000
 ```
 
-### ai.bot接続（リモート実行環境）
-```bash
-# ai.bot起動（port 8080、別途必要）
-# systemd-nspawn隔離コンテナでコマンド実行
+### 統合アーキテクチャ構成
 ```
-
-### アーキテクチャ構成
-```
-Claude Desktop/Cursor
+OpenAI GPT-4o-mini (Function Calling対応)
     ↓
-ai.gpt統合サーバー (port 8001) ← 23ツール
-    ├── ai.gpt機能: メモリ・関係性・人格 (9ツール)
-    ├── ai.shell機能: シェル・ファイル操作 (5ツール)
-    ├── ai.memory機能: 階層記憶・文脈検索 (5ツール)
-    ├── ai.bot連携: リモート実行・隔離環境 (4ツール)
-    └── HTTP client → ai.card独立サーバー (port 8000)
-                         ↓
-                    ai.card専用ツール (9ツール)
-                         ├── カード管理・ガチャ
-                         ├── atproto同期
-                         └── PostgreSQL/SQLite
+MCP Client (aigpt conv --provider openai)
+    ↓ HTTP API
+ai.gpt統合サーバー (port 8001) ← 27ツール
+    ├── 🧠 Memory System: 5 tools
+    ├── 🤝 Relationships: 4 tools  
+    ├── ⚙️ System State: 3 tools
+    ├── 💻 Shell Integration: 5 tools
+    ├── 🔒 Remote Execution: 4 tools
+    └── 📋 Project Management: 6 tools
                          
-    ai.gpt統合サーバー → ai.bot (port 8080)
-                         ↓
-                    systemd-nspawn container
-                         ├── Arch Linux隔離環境
-                         ├── SSH server
-                         └── セキュアコマンド実行
+Ollama qwen3/gemma3 (Chat APIのみ)
+    ↓
+Direct Chat (aigpt conv --provider ollama)
+    ↓ Direct Access
+Memory/Relationship Systems
 ```
 
-### AIプロバイダーを使った会話
-```bash
-# Ollamaで会話
-aigpt chat "did:plc:xxxxx" "こんにちは" --provider ollama --model qwen2.5
+### プロバイダー別機能対応表
+| 機能 | OpenAI | Ollama |
+|------|--------|--------|
+| 基本会話 | ✅ | ✅ |
+| MCP Function Calling | ✅ | ❌ |
+| 記憶システム連携 | ✅ (自動) | ✅ (直接) |
+| `/memories`, `/search`コマンド | ✅ | ✅ |
+| 自動記憶検索 | ✅ | ❌ |
 
-# OpenAIで会話
-aigpt chat "did:plc:xxxxx" "今日の調子はどう？" --provider openai --model gpt-4o-mini
+### 使い分けガイド
+```bash
+# 高機能記憶連携（推奨）- OpenAI
+aigpt conv syui --provider openai
+# 「覚えていることある？」→ 自動的にget_memoriesツール実行
+
+# シンプル会話 - Ollama  
+aigpt conv syui --provider ollama
+# 通常の会話、手動で /memories コマンド使用
 ```
 
 ### MCP Tools
