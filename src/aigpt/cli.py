@@ -67,7 +67,7 @@ def chat(
     relationship = persona.relationships.get_or_create_relationship(user_id)
     
     # Display response
-    console.print(Panel(response, title="AI Response", border_style="cyan"))
+    console.print(Panel(response, title="AI Response", border_style="cyan", expand=True, width=None))
     
     # Show relationship status
     status_color = "green" if relationship.transmission_enabled else "yellow"
@@ -915,6 +915,77 @@ def import_chatgpt(
     except Exception as e:
         console.print(f"[red]Error during import: {e}[/red]")
         raise typer.Exit(1)
+
+
+@app.command()
+def conversation(
+    user_id: str = typer.Argument(..., help="User ID (atproto DID)"),
+    data_dir: Optional[Path] = typer.Option(None, "--data-dir", "-d", help="Data directory"),
+    model: Optional[str] = typer.Option("qwen2.5", "--model", "-m", help="AI model to use"),
+    provider: Optional[str] = typer.Option("ollama", "--provider", help="AI provider (ollama/openai)")
+):
+    """Simple continuous conversation mode"""
+    persona = get_persona(data_dir)
+    
+    # Create AI provider
+    ai_provider = None
+    if provider and model:
+        try:
+            ai_provider = create_ai_provider(provider=provider, model=model)
+            console.print(f"[dim]Using {provider} with model {model}[/dim]")
+        except Exception as e:
+            console.print(f"[yellow]Warning: Could not create AI provider: {e}[/yellow]")
+    
+    # Welcome message
+    console.print(f"[cyan]Conversation with AI started. Type 'exit' or 'quit' to end.[/cyan]\n")
+    
+    # History for conversation mode
+    actual_data_dir = data_dir if data_dir else DEFAULT_DATA_DIR
+    history_file = actual_data_dir / "conversation_history.txt"
+    history = FileHistory(str(history_file))
+    
+    while True:
+        try:
+            # Simple prompt
+            user_input = ptk_prompt(
+                f"{user_id}> ",
+                history=history,
+                auto_suggest=AutoSuggestFromHistory()
+            ).strip()
+            
+            if not user_input:
+                continue
+                
+            # Exit commands
+            if user_input.lower() in ['exit', 'quit', 'bye']:
+                console.print("[cyan]Conversation ended.[/cyan]")
+                break
+            
+            # Process interaction
+            response, relationship_delta = persona.process_interaction(user_id, user_input, ai_provider)
+            
+            # Simple AI response display (no Panel, no extra info)
+            console.print(f"AI> {response}\n")
+            
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Use 'exit' or 'quit' to end conversation[/yellow]")
+        except EOFError:
+            console.print("\n[cyan]Conversation ended.[/cyan]")
+            break
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+
+
+# Alias for conversation command
+@app.command()
+def conv(
+    user_id: str = typer.Argument(..., help="User ID (atproto DID)"),
+    data_dir: Optional[Path] = typer.Option(None, "--data-dir", "-d", help="Data directory"),
+    model: Optional[str] = typer.Option("qwen2.5", "--model", "-m", help="AI model to use"),
+    provider: Optional[str] = typer.Option("ollama", "--provider", help="AI provider (ollama/openai)")
+):
+    """Alias for conversation command"""
+    conversation(user_id, data_dir, model, provider)
 
 
 if __name__ == "__main__":

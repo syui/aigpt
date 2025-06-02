@@ -86,7 +86,7 @@ Recent memories:
             self.logger.error(f"Ollama generation failed: {e}")
             return self._fallback_response(persona_state)
     
-    def chat(self, prompt: str, max_tokens: int = 200) -> str:
+    def chat(self, prompt: str, max_tokens: int = 2000) -> str:
         """Simple chat interface"""
         try:
             response = self.client.chat(

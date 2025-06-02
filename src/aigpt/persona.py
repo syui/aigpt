@@ -160,7 +160,7 @@ AI:"""
                 
                 # Generate response using AI with full context
                 try:
-                    response = ai_provider.chat(context_prompt, max_tokens=200)
+                    response = ai_provider.chat(context_prompt, max_tokens=2000)
                     
                     # Clean up response if it includes the prompt echo
                     if "AI:" in response:

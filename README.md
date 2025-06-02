@@ -130,7 +130,12 @@ aigpt config get providers.ollama.default_model
 
 ### 会話する
 ```bash
+# 通常の会話（詳細表示）
 aigpt chat "did:plc:xxxxx" "こんにちは、今日はどんな気分？"
+
+# 連続会話モード（シンプルな表示）
+aigpt conversation syui --provider ollama --model qwen3:latest
+aigpt conv syui --provider ollama --model qwen3:latest  # 短縮形
 ```
 
 ### ステータス確認
@@ -165,6 +170,53 @@ aigpt maintenance
 ```bash
 aigpt relationships
 ```
+
+### 会話モード詳細
+
+#### 通常の会話コマンド
+```bash
+# 詳細表示モード（関係性スコア・送信状態等も表示）
+aigpt chat syui "メッセージ" --provider ollama --model qwen3:latest
+```
+
+出力例:
+```
+╭─────────────────────────── AI Response ───────────────────────────╮
+│ AIの返答がここに表示されます                                        │
+╰─────────────────────────────────────────────────────────────────╯
+
+Relationship Status: stranger
+Score: 28.00 / 100.0
+Transmission: ✗ Disabled
+```
+
+#### 連続会話モード
+```bash
+# シンプルな会話画面（関係性情報なし）
+aigpt conversation syui --provider ollama --model qwen3:latest
+aigpt conv syui  # 短縮形、デフォルト設定使用
+```
+
+会話画面:
+```
+Using ollama with model qwen3:latest
+Conversation with AI started. Type 'exit' or 'quit' to end.
+
+syui> こんにちは
+AI> こんにちは！今日はどんな日でしたか？
+
+syui> 今日は良い天気でした
+AI> 良い天気だと気分も晴れやかになりますね！
+
+syui> exit
+Conversation ended.
+```
+
+#### 会話モードの特徴
+- **通常モード**: 詳細な関係性情報とパネル表示
+- **連続モード**: シンプルな`ユーザー> ` → `AI> `形式
+- **履歴保存**: 両モードとも会話履歴を自動保存
+- **コマンド補完**: Tab補完とコマンド履歴機能
 
 ### ChatGPTデータインポート
 ```bash
