@@ -45,7 +45,44 @@ class Config:
                     },
                     "ollama": {
                         "host": "http://localhost:11434",
-                        "default_model": "qwen2.5"
+                        "default_model": "qwen3:latest"
+                    }
+                },
+                "mcp": {
+                    "enabled": True,
+                    "auto_detect": True,
+                    "servers": {
+                        "ai_gpt": {
+                            "name": "ai.gpt MCP Server",
+                            "base_url": "http://localhost:8001",
+                            "endpoints": {
+                                "get_memories": "/get_memories",
+                                "search_memories": "/search_memories",
+                                "get_contextual_memories": "/get_contextual_memories",
+                                "process_interaction": "/process_interaction",
+                                "get_relationship": "/get_relationship",
+                                "get_all_relationships": "/get_all_relationships",
+                                "get_persona_state": "/get_persona_state",
+                                "get_fortune": "/get_fortune",
+                                "run_maintenance": "/run_maintenance",
+                                "execute_command": "/execute_command",
+                                "analyze_file": "/analyze_file",
+                                "remote_shell": "/remote_shell",
+                                "ai_bot_status": "/ai_bot_status"
+                            },
+                            "timeout": 10.0
+                        },
+                        "ai_card": {
+                            "name": "ai.card MCP Server",
+                            "base_url": "http://localhost:8000",
+                            "endpoints": {
+                                "health": "/health",
+                                "get_user_cards": "/api/cards/user",
+                                "gacha": "/api/gacha",
+                                "sync_atproto": "/api/sync"
+                            },
+                            "timeout": 5.0
+                        }
                     }
                 },
                 "atproto": {

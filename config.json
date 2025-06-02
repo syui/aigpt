@@ -1,0 +1,36 @@
+{
+  "providers": {
+    "openai": {
+      "api_key": "",
+      "default_model": "gpt-4o-mini"
+    },
+    "ollama": {
+      "host": "http://127.0.0.1:11434",
+      "default_model": "qwen3"
+    }
+  },
+  "atproto": {
+    "handle": null,
+    "password": null,
+    "host": "https://bsky.social"
+  },
+  "default_provider": "openai",
+  "mcp": {
+    "servers": {
+      "ai_gpt": {
+        "base_url": "http://localhost:8001",
+        "name": "ai.gpt MCP Server",
+        "timeout": "10.0",
+        "endpoints": {
+          "get_memories": "/get_memories",
+          "search_memories": "/search_memories",
+          "get_contextual_memories": "/get_contextual_memories",
+          "get_relationship": "/get_relationship",
+          "process_interaction": "/process_interaction"
+        }
+      }
+    },
+    "enabled": "true",
+    "auto_detect": "true"
+  }
+}

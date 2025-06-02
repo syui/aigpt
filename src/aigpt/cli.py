@@ -2,13 +2,15 @@
 
 import typer
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from datetime import datetime, timedelta
 import subprocess
 import shlex
+import httpx
+import asyncio
 from prompt_toolkit import prompt as ptk_prompt
 from prompt_toolkit.completion import WordCompleter, Completer, Completion
 from prompt_toolkit.history import FileHistory
@@ -28,6 +30,202 @@ console = Console()
 # Configuration
 config = Config()
 DEFAULT_DATA_DIR = config.data_dir
+
+
+class MCPClient:
+    """Client for communicating with MCP server using config settings"""
+    
+    def __init__(self, config: Optional[Config] = None):
+        self.config = config or Config()
+        self.enabled = self.config.get("mcp.enabled", True)
+        self.auto_detect = self.config.get("mcp.auto_detect", True)
+        self.servers = self.config.get("mcp.servers", {})
+        self.available = False
+        
+        if self.enabled:
+            self._check_availability()
+    
+    def _check_availability(self):
+        """Check if any MCP server is available"""
+        self.available = False
+        if not self.enabled:
+            print(f"🚨 [MCP Client] MCP disabled in config")
+            return
+            
+        print(f"🔍 [MCP Client] Checking availability...")
+        print(f"🔍 [MCP Client] Available servers: {list(self.servers.keys())}")
+        
+        # Check ai.gpt server first (primary)
+        ai_gpt_config = self.servers.get("ai_gpt", {})
+        if ai_gpt_config:
+            base_url = ai_gpt_config.get("base_url", "http://localhost:8001")
+            timeout = ai_gpt_config.get("timeout", 5.0)
+            
+            # Convert timeout to float if it's a string
+            if isinstance(timeout, str):
+                timeout = float(timeout)
+            
+            print(f"🔍 [MCP Client] Testing ai_gpt server: {base_url} (timeout: {timeout})")
+            try:
+                import httpx
+                with httpx.Client(timeout=timeout) as client:
+                    response = client.get(f"{base_url}/docs")
+                    print(f"🔍 [MCP Client] ai_gpt response: {response.status_code}")
+                    if response.status_code == 200:
+                        self.available = True
+                        self.active_server = "ai_gpt"
+                        print(f"✅ [MCP Client] ai_gpt server connected successfully")
+                        return
+            except Exception as e:
+                print(f"🚨 [MCP Client] ai_gpt connection failed: {e}")
+        else:
+            print(f"🚨 [MCP Client] No ai_gpt config found")
+        
+        # If auto_detect is enabled, try to find any available server
+        if self.auto_detect:
+            print(f"🔍 [MCP Client] Auto-detect enabled, trying other servers...")
+            for server_name, server_config in self.servers.items():
+                base_url = server_config.get("base_url", "")
+                timeout = server_config.get("timeout", 5.0)
+                
+                # Convert timeout to float if it's a string
+                if isinstance(timeout, str):
+                    timeout = float(timeout)
+                
+                print(f"🔍 [MCP Client] Testing {server_name}: {base_url} (timeout: {timeout})")
+                try:
+                    import httpx
+                    with httpx.Client(timeout=timeout) as client:
+                        response = client.get(f"{base_url}/docs")
+                        print(f"🔍 [MCP Client] {server_name} response: {response.status_code}")
+                        if response.status_code == 200:
+                            self.available = True
+                            self.active_server = server_name
+                            print(f"✅ [MCP Client] {server_name} server connected successfully")
+                            return
+                except Exception as e:
+                    print(f"🚨 [MCP Client] {server_name} connection failed: {e}")
+        
+        print(f"🚨 [MCP Client] No MCP servers available")
+    
+    def _get_url(self, endpoint_name: str) -> Optional[str]:
+        """Get full URL for an endpoint"""
+        if not self.available or not hasattr(self, 'active_server'):
+            print(f"🚨 [MCP Client] Not available or no active server")
+            return None
+            
+        server_config = self.servers.get(self.active_server, {})
+        base_url = server_config.get("base_url", "")
+        endpoints = server_config.get("endpoints", {})
+        endpoint_path = endpoints.get(endpoint_name, "")
+        
+        print(f"🔍 [MCP Client] Server: {self.active_server}")
+        print(f"🔍 [MCP Client] Base URL: {base_url}")
+        print(f"🔍 [MCP Client] Endpoints: {list(endpoints.keys())}")
+        print(f"🔍 [MCP Client] Looking for: {endpoint_name}")
+        print(f"🔍 [MCP Client] Found path: {endpoint_path}")
+        
+        if base_url and endpoint_path:
+            return f"{base_url}{endpoint_path}"
+        return None
+    
+    def _get_timeout(self) -> float:
+        """Get timeout for the active server"""
+        if not hasattr(self, 'active_server'):
+            return 5.0
+        server_config = self.servers.get(self.active_server, {})
+        timeout = server_config.get("timeout", 5.0)
+        
+        # Convert timeout to float if it's a string
+        if isinstance(timeout, str):
+            timeout = float(timeout)
+        
+        return timeout
+    
+    async def get_memories(self, limit: int = 5) -> Optional[Dict[str, Any]]:
+        """Get memories via MCP"""
+        url = self._get_url("get_memories")
+        if not url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=self._get_timeout()) as client:
+                response = await client.get(f"{url}?limit={limit}")
+                return response.json() if response.status_code == 200 else None
+        except Exception:
+            return None
+    
+    async def search_memories(self, keywords: list) -> Optional[Dict[str, Any]]:
+        """Search memories via MCP"""
+        url = self._get_url("search_memories")
+        if not url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=self._get_timeout()) as client:
+                response = await client.post(url, json={"keywords": keywords})
+                return response.json() if response.status_code == 200 else None
+        except Exception:
+            return None
+    
+    async def get_contextual_memories(self, query: str, limit: int = 5) -> Optional[Dict[str, Any]]:
+        """Get contextual memories via MCP"""
+        url = self._get_url("get_contextual_memories")
+        if not url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=self._get_timeout()) as client:
+                response = await client.get(f"{url}?query={query}&limit={limit}")
+                return response.json() if response.status_code == 200 else None
+        except Exception:
+            return None
+    
+    async def process_interaction(self, user_id: str, message: str) -> Optional[Dict[str, Any]]:
+        """Process interaction via MCP"""
+        url = self._get_url("process_interaction")
+        if not url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=self._get_timeout()) as client:
+                response = await client.post(url, json={"user_id": user_id, "message": message})
+                return response.json() if response.status_code == 200 else None
+        except Exception:
+            return None
+    
+    async def get_relationship(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get relationship via MCP"""
+        url = self._get_url("get_relationship")
+        print(f"🔍 [MCP Client] get_relationship URL: {url}")
+        if not url:
+            print(f"🚨 [MCP Client] No URL found for get_relationship")
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=self._get_timeout()) as client:
+                response = await client.get(f"{url}?user_id={user_id}")
+                print(f"🔍 [MCP Client] Response status: {response.status_code}")
+                if response.status_code == 200:
+                    result = response.json()
+                    print(f"🔍 [MCP Client] Response data: {result}")
+                    return result
+                else:
+                    print(f"🚨 [MCP Client] HTTP error: {response.status_code}")
+                    return None
+        except Exception as e:
+            print(f"🚨 [MCP Client] Exception: {e}")
+            return None
+    
+    def get_server_info(self) -> Dict[str, Any]:
+        """Get information about the active MCP server"""
+        if not self.available or not hasattr(self, 'active_server'):
+            return {"available": False}
+        
+        server_config = self.servers.get(self.active_server, {})
+        return {
+            "available": True,
+            "server_name": self.active_server,
+            "display_name": server_config.get("name", self.active_server),
+            "base_url": server_config.get("base_url", ""),
+            "timeout": server_config.get("timeout", 5.0),
+            "endpoints": len(server_config.get("endpoints", {}))
+        }
 
 
 def get_persona(data_dir: Optional[Path] = None) -> Persona:
@@ -226,10 +424,10 @@ def relationships(
 @app.command()
 def server(
     host: str = typer.Option("localhost", "--host", "-h", help="Server host"),
-    port: int = typer.Option(8000, "--port", "-p", help="Server port"),
+    port: int = typer.Option(8001, "--port", "-p", help="Server port"),
     data_dir: Optional[Path] = typer.Option(None, "--data-dir", "-d", help="Data directory"),
-    model: str = typer.Option("qwen2.5", "--model", "-m", help="AI model to use"),
-    provider: str = typer.Option("ollama", "--provider", help="AI provider (ollama/openai)")
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="AI model to use"),
+    provider: Optional[str] = typer.Option(None, "--provider", help="AI provider (ollama/openai)")
 ):
     """Run MCP server for AI integration"""
     import uvicorn
@@ -239,26 +437,94 @@ def server(
     
     data_dir.mkdir(parents=True, exist_ok=True)
     
+    # Get configuration
+    config_instance = Config()
+    
+    # Get defaults from config if not provided
+    if not provider:
+        provider = config_instance.get("default_provider", "ollama")
+    if not model:
+        if provider == "ollama":
+            model = config_instance.get("providers.ollama.default_model", "qwen3:latest")
+        elif provider == "openai":
+            model = config_instance.get("providers.openai.default_model", "gpt-4o-mini")
+        else:
+            model = "qwen3:latest"
+    
     # Create MCP server
     mcp_server = AIGptMcpServer(data_dir)
     app_instance = mcp_server.app
     
+    # Get endpoint categories and count
+    total_routes = len(mcp_server.app.routes)
+    mcp_tools = total_routes - 2  # Exclude docs and openapi
+    
+    # Categorize endpoints
+    memory_endpoints = ["get_memories", "search_memories", "get_contextual_memories", "create_summary", "create_core_memory"]
+    relationship_endpoints = ["get_relationship", "get_all_relationships", "process_interaction", "check_transmission_eligibility"]
+    system_endpoints = ["get_persona_state", "get_fortune", "run_maintenance"]
+    shell_endpoints = ["execute_command", "analyze_file", "write_file", "list_files", "read_project_file"]
+    remote_endpoints = ["remote_shell", "ai_bot_status", "isolated_python", "isolated_analysis"]
+    
+    # Build endpoint summary
+    endpoint_summary = f"""🧠 Memory System: {len(memory_endpoints)} tools
+🤝 Relationships: {len(relationship_endpoints)} tools  
+⚙️  System State: {len(system_endpoints)} tools
+💻 Shell Integration: {len(shell_endpoints)} tools
+🔒 Remote Execution: {len(remote_endpoints)} tools"""
+    
+    # Check MCP client connectivity
+    mcp_client = MCPClient(config_instance)
+    mcp_status = "✅ MCP Client Ready" if mcp_client.available else "⚠️  MCP Client Disabled"
+    
+    # Provider configuration check
+    provider_status = "✅ Ready"
+    if provider == "openai":
+        api_key = config_instance.get_api_key("openai")
+        if not api_key:
+            provider_status = "⚠️  No API Key"
+    elif provider == "ollama":
+        ollama_host = config_instance.get("providers.ollama.host", "http://localhost:11434")
+        provider_status = f"✅ {ollama_host}"
+    
     console.print(Panel(
-        f"[cyan]Starting ai.gpt MCP Server[/cyan]\n\n"
-        f"Host: {host}:{port}\n"
-        f"Provider: {provider}\n"
-        f"Model: {model}\n"
-        f"Data: {data_dir}",
-        title="MCP Server",
-        border_style="green"
+        f"[bold cyan]🚀 ai.gpt MCP Server[/bold cyan]\n\n"
+        f"[green]Server Configuration:[/green]\n"
+        f"🌐 Address: http://{host}:{port}\n"
+        f"📋 API Docs: http://{host}:{port}/docs\n"
+        f"💾 Data Directory: {data_dir}\n\n"
+        f"[green]AI Provider Configuration:[/green]\n"
+        f"🤖 Provider: {provider} {provider_status}\n"
+        f"🧩 Model: {model}\n\n"
+        f"[green]MCP Tools Available ({mcp_tools} total):[/green]\n"
+        f"{endpoint_summary}\n\n"
+        f"[green]Integration Status:[/green]\n"
+        f"{mcp_status}\n"
+        f"🔗 Config: {config_instance.config_file}\n\n"
+        f"[dim]Press Ctrl+C to stop server[/dim]",
+        title="🔧 MCP Server Startup",
+        border_style="green",
+        expand=True
     ))
     
     # Store provider info in app state for later use
     app_instance.state.ai_provider = provider
     app_instance.state.ai_model = model
+    app_instance.state.config = config_instance
     
-    # Run server
-    uvicorn.run(app_instance, host=host, port=port)
+    # Run server with better logging
+    try:
+        uvicorn.run(
+            app_instance, 
+            host=host, 
+            port=port,
+            log_level="info",
+            access_log=False  # Reduce noise
+        )
+    except KeyboardInterrupt:
+        console.print("\n[yellow]🛑 MCP Server stopped[/yellow]")
+    except Exception as e:
+        console.print(f"\n[red]❌ Server error: {e}[/red]")
 
 
 @app.command()
@@ -869,7 +1135,8 @@ def config(
             console.print("[red]Error: key required for get action[/red]")
             return
         
-        val = config.get(key)
+        config_instance = Config()
+        val = config_instance.get(key)
         if val is None:
             console.print(f"[yellow]Key '{key}' not found[/yellow]")
         else:
@@ -880,13 +1147,14 @@ def config(
             console.print("[red]Error: key and value required for set action[/red]")
             return
         
+        config_instance = Config()
         # Special handling for sensitive keys
         if "password" in key or "api_key" in key:
             console.print(f"[cyan]Setting {key}[/cyan] = [dim]***hidden***[/dim]")
         else:
             console.print(f"[cyan]Setting {key}[/cyan] = [green]{value}[/green]")
         
-        config.set(key, value)
+        config_instance.set(key, value)
         console.print("[green]✓ Configuration saved[/green]")
     
     elif action == "delete":
@@ -894,7 +1162,8 @@ def config(
             console.print("[red]Error: key required for delete action[/red]")
             return
         
-        if config.delete(key):
+        config_instance = Config()
+        if config_instance.delete(key):
             console.print(f"[green]✓ Deleted {key}[/green]")
         else:
             console.print(f"[yellow]Key '{key}' not found[/yellow]")
@@ -986,7 +1255,9 @@ def conversation(
     model: Optional[str] = typer.Option(None, "--model", "-m", help="AI model to use"),
     provider: Optional[str] = typer.Option(None, "--provider", help="AI provider (ollama/openai)")
 ):
-    """Simple continuous conversation mode"""
+    """Simple continuous conversation mode with MCP support"""
+    # Initialize MCP client
+    mcp_client = MCPClient()
     persona = get_persona(data_dir)
     
     # Get defaults from config if not provided
@@ -1001,35 +1272,49 @@ def conversation(
         else:
             model = "qwen3:latest"  # fallback
     
-    # Create AI provider
+    # Create AI provider with MCP client
     ai_provider = None
     try:
-        ai_provider = create_ai_provider(provider=provider, model=model)
+        ai_provider = create_ai_provider(provider=provider, model=model, mcp_client=mcp_client)
         console.print(f"[dim]Using {provider} with model {model}[/dim]")
     except Exception as e:
         console.print(f"[yellow]Warning: Could not create AI provider: {e}[/yellow]")
     
+    # MCP status
+    server_info = mcp_client.get_server_info()
+    if server_info["available"]:
+        console.print(f"[green]✓ MCP Server connected: {server_info['display_name']}[/green]")
+        console.print(f"[dim]  URL: {server_info['base_url']} | Endpoints: {server_info['endpoints']}[/dim]")
+    else:
+        console.print(f"[yellow]⚠ MCP Server unavailable (running in local mode)[/yellow]")
+    
     # Welcome message
-    console.print(f"[cyan]Conversation with AI started. Type 'exit' or 'quit' to end.[/cyan]\n")
+    console.print(f"[cyan]Conversation with AI started. Type 'exit' or 'quit' to end.[/cyan]")
+    if server_info["available"]:
+        console.print(f"[dim]MCP commands: /memories, /search, /context, /relationship[/dim]\n")
+    else:
+        console.print()
     
     # History for conversation mode
     actual_data_dir = data_dir if data_dir else DEFAULT_DATA_DIR
     history_file = actual_data_dir / "conversation_history.txt"
     history = FileHistory(str(history_file))
     
-    # Custom completer for slash commands and phrases
+    # Custom completer for slash commands and phrases with MCP support
     class ConversationCompleter(Completer):
-        def __init__(self):
-            self.slash_commands = ['/status', '/help', '/clear', '/exit', '/quit']
+        def __init__(self, mcp_available: bool = False):
+            self.basic_commands = ['/status', '/help', '/clear', '/exit', '/quit']
+            self.mcp_commands = ['/memories', '/search', '/context', '/relationship'] if mcp_available else []
             self.phrases = ['こんにちは', '今日は', 'ありがとう', 'お疲れ様',
                            'どう思う？', 'どうですか？', '教えて', 'わかりました']
+            self.all_commands = self.basic_commands + self.mcp_commands
         
         def get_completions(self, document, complete_event):
             text = document.text_before_cursor
             
             # If text starts with '/', complete slash commands
             if text.startswith('/'):
-                for cmd in self.slash_commands:
+                for cmd in self.all_commands:
                     if cmd.startswith(text):
                         yield Completion(cmd, start_position=-len(text))
             # For other text, complete phrases
@@ -1038,7 +1323,7 @@ def conversation(
                     if phrase.startswith(text):
                         yield Completion(phrase, start_position=-len(text))
     
-    completer = ConversationCompleter()
+    completer = ConversationCompleter(mcp_client.available)
     
     while True:
         try:
@@ -1076,6 +1361,12 @@ def conversation(
                 console.print("  /clear   - Clear screen")
                 console.print("  /exit    - End conversation")
                 console.print("  /        - Show commands (same as /help)")
+                if mcp_client.available:
+                    console.print(f"\n[cyan]MCP Commands:[/cyan]")
+                    console.print("  /memories     - Show recent memories")
+                    console.print("  /search <keywords> - Search memories")
+                    console.print("  /context <query>   - Get contextual memories")
+                    console.print("  /relationship      - Show relationship via MCP")
                 console.print("  <message> - Chat with AI\n")
                 continue
                 
@@ -1083,7 +1374,73 @@ def conversation(
                 console.clear()
                 continue
             
-            # Process interaction
+            # MCP Commands
+            elif user_input.lower() == '/memories' and mcp_client.available:
+                memories = asyncio.run(mcp_client.get_memories(limit=5))
+                if memories:
+                    console.print(f"\n[cyan]Recent Memories (via MCP):[/cyan]")
+                    for i, mem in enumerate(memories[:5], 1):
+                        console.print(f"  {i}. [{mem.get('level', 'unknown')}] {mem.get('content', '')[:100]}...")
+                    console.print("")
+                else:
+                    console.print("[yellow]No memories found[/yellow]")
+                continue
+            
+            elif user_input.lower().startswith('/search ') and mcp_client.available:
+                query = user_input[8:].strip()
+                if query:
+                    keywords = query.split()
+                    results = asyncio.run(mcp_client.search_memories(keywords))
+                    if results:
+                        console.print(f"\n[cyan]Memory Search Results for '{query}' (via MCP):[/cyan]")
+                        for i, mem in enumerate(results[:5], 1):
+                            console.print(f"  {i}. {mem.get('content', '')[:100]}...")
+                        console.print("")
+                    else:
+                        console.print(f"[yellow]No memories found for '{query}'[/yellow]")
+                else:
+                    console.print("[red]Usage: /search <keywords>[/red]")
+                continue
+            
+            elif user_input.lower().startswith('/context ') and mcp_client.available:
+                query = user_input[9:].strip()
+                if query:
+                    results = asyncio.run(mcp_client.get_contextual_memories(query, limit=5))
+                    if results:
+                        console.print(f"\n[cyan]Contextual Memories for '{query}' (via MCP):[/cyan]")
+                        for i, mem in enumerate(results[:5], 1):
+                            console.print(f"  {i}. {mem.get('content', '')[:100]}...")
+                        console.print("")
+                    else:
+                        console.print(f"[yellow]No contextual memories found for '{query}'[/yellow]")
+                else:
+                    console.print("[red]Usage: /context <query>[/red]")
+                continue
+            
+            elif user_input.lower() == '/relationship' and mcp_client.available:
+                rel_data = asyncio.run(mcp_client.get_relationship(user_id))
+                if rel_data:
+                    console.print(f"\n[cyan]Relationship (via MCP):[/cyan]")
+                    console.print(f"Status: {rel_data.get('status', 'unknown')}")
+                    console.print(f"Score: {rel_data.get('score', 0):.2f}")
+                    console.print(f"Interactions: {rel_data.get('total_interactions', 0)}")
+                    console.print("")
+                else:
+                    console.print("[yellow]No relationship data found[/yellow]")
+                continue
+            
+            # Process interaction - try MCP first, fallback to local
+            if mcp_client.available:
+                try:
+                    mcp_result = asyncio.run(mcp_client.process_interaction(user_id, user_input))
+                    if mcp_result and 'response' in mcp_result:
+                        response = mcp_result['response']
+                        console.print(f"AI> {response} [dim](via MCP)[/dim]\n")
+                        continue
+                except Exception as e:
+                    console.print(f"[yellow]MCP failed, using local: {e}[/yellow]")
+            
+            # Fallback to local processing
             response, relationship_delta = persona.process_interaction(user_id, user_input, ai_provider)
             
             # Simple AI response display (no Panel, no extra info)

@@ -42,7 +42,8 @@
       "Bash(echo:*)",
       "Bash(aigpt shell:*)",
       "Bash(aigpt maintenance)",
-      "Bash(aigpt status syui)"
+      "Bash(aigpt status syui)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }

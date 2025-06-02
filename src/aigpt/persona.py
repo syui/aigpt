@@ -160,7 +160,12 @@ AI:"""
                 
                 # Generate response using AI with full context
                 try:
-                    response = ai_provider.chat(context_prompt, max_tokens=2000)
+                    # Check if AI provider supports MCP
+                    if hasattr(ai_provider, 'chat_with_mcp'):
+                        import asyncio
+                        response = asyncio.run(ai_provider.chat_with_mcp(context_prompt, max_tokens=2000, user_id=user_id))
+                    else:
+                        response = ai_provider.chat(context_prompt, max_tokens=2000)
                     
                     # Clean up response if it includes the prompt echo
                     if "AI:" in response:
