@@ -1,9 +1,9 @@
 """Data models for ai.gpt system"""
 
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, Dict, List, Any
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class MemoryLevel(str, Enum):
@@ -30,9 +30,18 @@ class Memory(BaseModel):
     content: str
     summary: Optional[str] = None
     level: MemoryLevel = MemoryLevel.FULL_LOG
-    importance_score: float = Field(ge=0.0, le=1.0)
+    importance_score: float
     is_core: bool = False
     decay_rate: float = 0.01
+    metadata: Optional[Dict[str, Any]] = None
+
+    @field_validator('importance_score')
+    @classmethod
+    def validate_importance_score(cls, v):
+        """Ensure importance_score is within valid range, handle floating point precision issues"""
+        if abs(v) < 1e-10:  # Very close to zero
+            return 0.0
+        return max(0.0, min(1.0, v))
 
 
 class Relationship(BaseModel):
@@ -52,7 +61,7 @@ class Relationship(BaseModel):
 
 class AIFortune(BaseModel):
     """Daily AI fortune affecting personality"""
-    date: datetime.date
+    date: date
     fortune_value: int = Field(ge=1, le=10)
     consecutive_good: int = 0
     consecutive_bad: int = 0
