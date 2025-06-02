@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 # Setup Python virtual environment in the new config directory
 
 VENV_DIR="$HOME/.config/syui/ai/gpt/venv"
@@ -16,3 +16,8 @@ pip install -e .
 echo "Setup complete!"
 echo "To activate the virtual environment, run:"
 echo "source ~/.config/syui/ai/gpt/venv/bin/activate"
+
+if [ -z "`$SHELL -i -c \"alias aigpt\"`" ]; then
+	echo 'alias aigpt="$HOME/.config/syui/ai/gpt/venv/bin/aigpt"' >> ${HOME}/.$(basename $SHELL)rc
+	exec $SHELL
+fi
