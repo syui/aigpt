@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import subprocess
 import shlex
 from prompt_toolkit import prompt as ptk_prompt
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import WordCompleter, Completer, Completion
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 
@@ -379,21 +379,32 @@ def schedule(
 @app.command()
 def shell(
     data_dir: Optional[Path] = typer.Option(None, "--data-dir", "-d", help="Data directory"),
-    model: Optional[str] = typer.Option("qwen2.5", "--model", "-m", help="AI model to use"),
-    provider: Optional[str] = typer.Option("ollama", "--provider", help="AI provider (ollama/openai)")
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="AI model to use"),
+    provider: Optional[str] = typer.Option(None, "--provider", help="AI provider (ollama/openai)")
 ):
     """Interactive shell mode (ai.shell)"""
     persona = get_persona(data_dir)
     
+    # Get defaults from config if not provided
+    config_instance = Config()
+    if not provider:
+        provider = config_instance.get("default_provider", "ollama")
+    if not model:
+        if provider == "ollama":
+            model = config_instance.get("providers.ollama.default_model", "qwen3:latest")
+        elif provider == "openai":
+            model = config_instance.get("providers.openai.default_model", "gpt-4o-mini")
+        else:
+            model = "qwen3:latest"  # fallback
+    
     # Create AI provider
     ai_provider = None
-    if provider and model:
-        try:
-            ai_provider = create_ai_provider(provider=provider, model=model)
-            console.print(f"[dim]Using {provider} with model {model}[/dim]\n")
-        except Exception as e:
-            console.print(f"[yellow]Warning: Could not create AI provider: {e}[/yellow]")
-            console.print("[yellow]Falling back to simple responses[/yellow]\n")
+    try:
+        ai_provider = create_ai_provider(provider=provider, model=model)
+        console.print(f"[dim]Using {provider} with model {model}[/dim]\n")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Could not create AI provider: {e}[/yellow]")
+        console.print("[yellow]Falling back to simple responses[/yellow]\n")
     
     # Welcome message
     console.print(Panel(
@@ -411,24 +422,71 @@ def shell(
         border_style="green"
     ))
     
-    # Command completer with shell commands
-    builtin_commands = ['help', 'exit', 'quit', 'chat', 'status', 'clear', 'fortune', 'relationships', 'load']
+    # Custom completer for ai.shell
+    class ShellCompleter(Completer):
+        def __init__(self):
+            # Slash commands (built-in)
+            self.slash_commands = [
+                '/help', '/exit', '/quit', '/status', '/clear', '/load',
+                '/fortune', '/relationships'
+            ]
+            
+            # AI commands
+            self.ai_commands = [
+                '/analyze', '/generate', '/explain', '/optimize', 
+                '/refactor', '/test', '/document'
+            ]
+            
+            # Project commands
+            self.project_commands = [
+                '/project-status', '/suggest-next', '/continuous'
+            ]
+            
+            # Remote commands
+            self.remote_commands = [
+                '/remote', '/isolated', '/aibot-status'
+            ]
+            
+            # Shell commands (with ! prefix)
+            self.shell_commands = [
+                '!ls', '!cd', '!pwd', '!cat', '!echo', '!grep', '!find', 
+                '!mkdir', '!rm', '!cp', '!mv', '!git', '!python', '!pip', 
+                '!npm', '!node', '!cargo', '!rustc', '!docker', '!kubectl'
+            ]
+            
+            # All commands combined
+            self.all_commands = (self.slash_commands + self.ai_commands + 
+                               self.project_commands + self.remote_commands + 
+                               self.shell_commands)
+        
+        def get_completions(self, document, complete_event):
+            text = document.text_before_cursor
+            
+            # For slash commands
+            if text.startswith('/'):
+                for cmd in self.all_commands:
+                    if cmd.startswith('/') and cmd.startswith(text):
+                        yield Completion(cmd, start_position=-len(text))
+            
+            # For shell commands (!)
+            elif text.startswith('!'):
+                for cmd in self.shell_commands:
+                    if cmd.startswith(text):
+                        yield Completion(cmd, start_position=-len(text))
+            
+            # For regular text (AI chat)
+            else:
+                # Common AI prompts
+                ai_prompts = [
+                    'analyze this file', 'generate code for', 'explain how to',
+                    'optimize this', 'refactor the', 'create tests for',
+                    'document this code', 'help me with'
+                ]
+                for prompt in ai_prompts:
+                    if prompt.startswith(text.lower()):
+                        yield Completion(prompt, start_position=-len(text))
     
-    # Add common shell commands
-    shell_commands = ['ls', 'cd', 'pwd', 'cat', 'echo', 'grep', 'find', 'mkdir', 'rm', 'cp', 'mv', 
-                      'git', 'python', 'pip', 'npm', 'node', 'cargo', 'rustc', 'docker', 'kubectl']
-    
-    # AI-specific commands
-    ai_commands = ['analyze', 'generate', 'explain', 'optimize', 'refactor', 'test', 'document']
-    
-    # Remote execution commands (ai.bot integration)
-    remote_commands = ['remote', 'isolated', 'aibot-status']
-    
-    # Project management commands (Claude Code-like)
-    project_commands = ['project-status', 'suggest-next', 'continuous']
-    
-    all_commands = builtin_commands + ['!' + cmd for cmd in shell_commands] + ai_commands + remote_commands + project_commands
-    completer = WordCompleter(all_commands, ignore_case=True)
+    completer = ShellCompleter()
     
     # History file
     actual_data_dir = data_dir if data_dir else DEFAULT_DATA_DIR
@@ -452,43 +510,45 @@ def shell(
                 continue
             
             # Exit commands
-            if user_input.lower() in ['exit', 'quit']:
+            if user_input.lower() in ['exit', 'quit', '/exit', '/quit']:
                 console.print("[cyan]Goodbye![/cyan]")
                 break
             
             # Help command
-            elif user_input.lower() == 'help':
+            elif user_input.lower() in ['help', '/help', '/']:
                 console.print(Panel(
                     "[cyan]ai.shell Commands:[/cyan]\n\n"
-                    "  help              - Show this help message\n"
-                    "  exit/quit         - Exit the shell\n"
-                    "  !<command>        - Execute a shell command\n"
-                    "  chat <message>    - Explicitly chat with AI\n"
-                    "  status            - Show AI status\n"
-                    "  fortune           - Check AI fortune\n"
-                    "  relationships     - List all relationships\n"
-                    "  clear             - Clear the screen\n"
-                    "  load              - Load aishell.md project file\n\n"
+                    "  /help, /          - Show this help message\n"
+                    "  /exit, /quit      - Exit the shell\n"
+                    "  !<command>        - Execute a shell command (!ls, !git status)\n"
+                    "  /status           - Show AI status\n"
+                    "  /fortune          - Check AI fortune\n"
+                    "  /relationships    - List all relationships\n"
+                    "  /clear            - Clear the screen\n"
+                    "  /load             - Load aishell.md project file\n\n"
                     "[cyan]AI Commands:[/cyan]\n"
-                    "  analyze <file>    - Analyze a file with AI\n"
-                    "  generate <desc>   - Generate code from description\n"
-                    "  explain <topic>   - Get AI explanation\n\n"
+                    "  /analyze <file>   - Analyze a file with AI\n"
+                    "  /generate <desc>  - Generate code from description\n"
+                    "  /explain <topic>  - Get AI explanation\n\n"
                     "[cyan]Remote Commands (ai.bot):[/cyan]\n"
-                    "  remote <command>  - Execute command in isolated container\n"
-                    "  isolated <code>   - Run Python code in isolated environment\n"
-                    "  aibot-status      - Check ai.bot server status\n\n"
+                    "  /remote <command> - Execute command in isolated container\n"
+                    "  /isolated <code>  - Run Python code in isolated environment\n"
+                    "  /aibot-status     - Check ai.bot server status\n\n"
                     "[cyan]Project Commands (Claude Code-like):[/cyan]\n"
-                    "  project-status    - Analyze current project structure\n"
-                    "  suggest-next      - AI suggests next development steps\n"
-                    "  continuous        - Enable continuous development mode\n\n"
-                    "You can also type any message to chat with AI\n"
-                    "Use Tab for command completion",
+                    "  /project-status   - Analyze current project structure\n"
+                    "  /suggest-next     - AI suggests next development steps\n"
+                    "  /continuous       - Enable continuous development mode\n\n"
+                    "[cyan]Tab Completion:[/cyan]\n"
+                    "  /[Tab]            - Show all slash commands\n"
+                    "  ![Tab]            - Show all shell commands\n"
+                    "  <text>[Tab]       - AI prompt suggestions\n\n"
+                    "Type any message to chat with AI",
                     title="Help",
                     border_style="yellow"
                 ))
             
             # Clear command
-            elif user_input.lower() == 'clear':
+            elif user_input.lower() in ['clear', '/clear']:
                 console.clear()
             
             # Shell command execution
@@ -517,7 +577,7 @@ def shell(
                         console.print(f"[red]Error executing command: {e}[/red]")
             
             # Status command
-            elif user_input.lower() == 'status':
+            elif user_input.lower() in ['status', '/status']:
                 state = persona.get_current_state()
                 console.print(f"\nMood: {state.current_mood}")
                 console.print(f"Fortune: {state.fortune.fortune_value}/10")
@@ -527,14 +587,14 @@ def shell(
                 console.print(f"Score: {rel.score:.2f} / {rel.threshold}")
             
             # Fortune command
-            elif user_input.lower() == 'fortune':
+            elif user_input.lower() in ['fortune', '/fortune']:
                 fortune = persona.fortune_system.get_today_fortune()
                 fortune_bar = "🌟" * fortune.fortune_value + "☆" * (10 - fortune.fortune_value)
                 console.print(f"\n{fortune_bar}")
                 console.print(f"Today's Fortune: {fortune.fortune_value}/10")
             
             # Relationships command
-            elif user_input.lower() == 'relationships':
+            elif user_input.lower() in ['relationships', '/relationships']:
                 if persona.relationships.relationships:
                     console.print("\n[cyan]Relationships:[/cyan]")
                     for user_id, rel in persona.relationships.relationships.items():
@@ -543,7 +603,7 @@ def shell(
                     console.print("[yellow]No relationships yet[/yellow]")
             
             # Load aishell.md command
-            elif user_input.lower() in ['load', 'load aishell.md', 'project']:
+            elif user_input.lower() in ['load', '/load', 'load aishell.md', 'project']:
                 # Try to find and load aishell.md
                 search_paths = [
                     Path.cwd() / "aishell.md",
@@ -572,10 +632,10 @@ def shell(
                     console.print("Create aishell.md to define project goals and AI instructions.")
             
             # AI-powered commands
-            elif user_input.lower().startswith('analyze '):
+            elif user_input.lower().startswith(('analyze ', '/analyze ')):
                 # Analyze file or code with project context
-                target = user_input[8:].strip()
-                if os.path.exists(target):
+                target = user_input.split(' ', 1)[1].strip() if ' ' in user_input else ''
+                if target and os.path.exists(target):
                     console.print(f"[cyan]Analyzing {target} with project context...[/cyan]")
                     try:
                         developer = ContinuousDeveloper(Path.cwd(), ai_provider)
@@ -589,11 +649,11 @@ def shell(
                         response, _ = persona.process_interaction(current_user, analysis_prompt, ai_provider)
                         console.print(f"\n[cyan]Analysis:[/cyan]\n{response}")
                 else:
-                    console.print(f"[red]File not found: {target}[/red]")
+                    console.print(f"[red]Usage: /analyze <file_path>[/red]")
             
-            elif user_input.lower().startswith('generate '):
+            elif user_input.lower().startswith(('generate ', '/generate ')):
                 # Generate code with project context
-                gen_prompt = user_input[9:].strip()
+                gen_prompt = user_input.split(' ', 1)[1].strip() if ' ' in user_input else ''
                 if gen_prompt:
                     console.print("[cyan]Generating code with project context...[/cyan]")
                     try:
@@ -605,8 +665,10 @@ def shell(
                         full_prompt = f"Generate code for: {gen_prompt}. Provide clean, well-commented code."
                         response, _ = persona.process_interaction(current_user, full_prompt, ai_provider)
                         console.print(f"\n[cyan]Generated Code:[/cyan]\n{response}")
+                else:
+                    console.print(f"[red]Usage: /generate <description>[/red]")
             
-            elif user_input.lower().startswith('explain '):
+            elif user_input.lower().startswith(('explain ', '/explain ')):
                 # Explain code or concept
                 topic = user_input[8:].strip()
                 if topic:
@@ -921,20 +983,31 @@ def import_chatgpt(
 def conversation(
     user_id: str = typer.Argument(..., help="User ID (atproto DID)"),
     data_dir: Optional[Path] = typer.Option(None, "--data-dir", "-d", help="Data directory"),
-    model: Optional[str] = typer.Option("qwen2.5", "--model", "-m", help="AI model to use"),
-    provider: Optional[str] = typer.Option("ollama", "--provider", help="AI provider (ollama/openai)")
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="AI model to use"),
+    provider: Optional[str] = typer.Option(None, "--provider", help="AI provider (ollama/openai)")
 ):
     """Simple continuous conversation mode"""
     persona = get_persona(data_dir)
     
+    # Get defaults from config if not provided
+    config_instance = Config()
+    if not provider:
+        provider = config_instance.get("default_provider", "ollama")
+    if not model:
+        if provider == "ollama":
+            model = config_instance.get("providers.ollama.default_model", "qwen3:latest")
+        elif provider == "openai":
+            model = config_instance.get("providers.openai.default_model", "gpt-4o-mini")
+        else:
+            model = "qwen3:latest"  # fallback
+    
     # Create AI provider
     ai_provider = None
-    if provider and model:
-        try:
-            ai_provider = create_ai_provider(provider=provider, model=model)
-            console.print(f"[dim]Using {provider} with model {model}[/dim]")
-        except Exception as e:
-            console.print(f"[yellow]Warning: Could not create AI provider: {e}[/yellow]")
+    try:
+        ai_provider = create_ai_provider(provider=provider, model=model)
+        console.print(f"[dim]Using {provider} with model {model}[/dim]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Could not create AI provider: {e}[/yellow]")
     
     # Welcome message
     console.print(f"[cyan]Conversation with AI started. Type 'exit' or 'quit' to end.[/cyan]\n")
@@ -944,22 +1017,71 @@ def conversation(
     history_file = actual_data_dir / "conversation_history.txt"
     history = FileHistory(str(history_file))
     
+    # Custom completer for slash commands and phrases
+    class ConversationCompleter(Completer):
+        def __init__(self):
+            self.slash_commands = ['/status', '/help', '/clear', '/exit', '/quit']
+            self.phrases = ['こんにちは', '今日は', 'ありがとう', 'お疲れ様',
+                           'どう思う？', 'どうですか？', '教えて', 'わかりました']
+        
+        def get_completions(self, document, complete_event):
+            text = document.text_before_cursor
+            
+            # If text starts with '/', complete slash commands
+            if text.startswith('/'):
+                for cmd in self.slash_commands:
+                    if cmd.startswith(text):
+                        yield Completion(cmd, start_position=-len(text))
+            # For other text, complete phrases
+            else:
+                for phrase in self.phrases:
+                    if phrase.startswith(text):
+                        yield Completion(phrase, start_position=-len(text))
+    
+    completer = ConversationCompleter()
+    
     while True:
         try:
-            # Simple prompt
+            # Simple prompt with completion
             user_input = ptk_prompt(
                 f"{user_id}> ",
                 history=history,
-                auto_suggest=AutoSuggestFromHistory()
+                auto_suggest=AutoSuggestFromHistory(),
+                completer=completer
             ).strip()
             
             if not user_input:
                 continue
                 
             # Exit commands
-            if user_input.lower() in ['exit', 'quit', 'bye']:
+            if user_input.lower() in ['exit', 'quit', 'bye', '/exit', '/quit']:
                 console.print("[cyan]Conversation ended.[/cyan]")
                 break
+            
+            # Slash commands
+            elif user_input.lower() == '/status':
+                state = persona.get_current_state()
+                rel = persona.relationships.get_or_create_relationship(user_id)
+                console.print(f"\n[cyan]AI Status:[/cyan]")
+                console.print(f"Mood: {state.current_mood}")
+                console.print(f"Fortune: {state.fortune.fortune_value}/10")
+                console.print(f"Relationship: {rel.status.value} ({rel.score:.2f})")
+                console.print("")
+                continue
+            
+            elif user_input.lower() in ['/help', '/']:
+                console.print(f"\n[cyan]Conversation Commands:[/cyan]")
+                console.print("  /status  - Show AI status and relationship")
+                console.print("  /help    - Show this help")
+                console.print("  /clear   - Clear screen")
+                console.print("  /exit    - End conversation")
+                console.print("  /        - Show commands (same as /help)")
+                console.print("  <message> - Chat with AI\n")
+                continue
+                
+            elif user_input.lower() == '/clear':
+                console.clear()
+                continue
             
             # Process interaction
             response, relationship_delta = persona.process_interaction(user_id, user_input, ai_provider)
@@ -981,8 +1103,8 @@ def conversation(
 def conv(
     user_id: str = typer.Argument(..., help="User ID (atproto DID)"),
     data_dir: Optional[Path] = typer.Option(None, "--data-dir", "-d", help="Data directory"),
-    model: Optional[str] = typer.Option("qwen2.5", "--model", "-m", help="AI model to use"),
-    provider: Optional[str] = typer.Option("ollama", "--provider", help="AI provider (ollama/openai)")
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="AI model to use"),
+    provider: Optional[str] = typer.Option(None, "--provider", help="AI provider (ollama/openai)")
 ):
     """Alias for conversation command"""
     conversation(user_id, data_dir, model, provider)

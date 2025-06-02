@@ -81,7 +81,7 @@ Recent memories:
                     {"role": "user", "content": prompt}
                 ]
             )
-            return response['message']['content']
+            return self._clean_response(response['message']['content'])
         except Exception as e:
             self.logger.error(f"Ollama generation failed: {e}")
             return self._fallback_response(persona_state)
@@ -101,10 +101,19 @@ Recent memories:
                 },
                 stream=False  # ストリーミング無効化で安定性向上
             )
-            return response['message']['content']
+            return self._clean_response(response['message']['content'])
         except Exception as e:
             self.logger.error(f"Ollama chat failed (host: {self.host}): {e}")
             return "I'm having trouble connecting to the AI model."
+    
+    def _clean_response(self, response: str) -> str:
+        """Clean response by removing think tags and other unwanted content"""
+        import re
+        # Remove <think></think> tags and their content
+        response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL)
+        # Remove any remaining whitespace at the beginning/end
+        response = response.strip()
+        return response
     
     def _fallback_response(self, persona_state: PersonaState) -> str:
         """Fallback response based on mood"""
