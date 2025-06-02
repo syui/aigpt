@@ -133,7 +133,15 @@ FORTUNE: {state.fortune.fortune_value}/10
         if context_parts:
             context_prompt += "RELEVANT CONTEXT:\n" + "\n\n".join(context_parts) + "\n\n"
         
-        context_prompt += f"""Respond to this message while staying true to your personality and the established relationship context:
+        context_prompt += f"""IMPORTANT: You have access to the following tools:
+- Memory tools: get_memories, search_memories, get_contextual_memories
+- Relationship tools: get_relationship
+- Card game tools: card_get_user_cards, card_draw_card, card_analyze_collection
+
+When asked about cards, collections, or anything card-related, YOU MUST use the card tools.
+For "カードコレクションを見せて" or similar requests, use card_get_user_cards with did='{user_id}'.
+
+Respond to this message while staying true to your personality and the established relationship context:
 
 User: {current_message}
 

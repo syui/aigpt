@@ -239,6 +239,85 @@ class OpenAIProvider:
                 }
             }
         ]
+        
+        # Add ai.card tools if available
+        if hasattr(self.mcp_client, 'has_card_tools') and self.mcp_client.has_card_tools:
+            card_tools = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "card_get_user_cards",
+                        "description": "ユーザーが所有するカードの一覧を取得します",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "did": {
+                                    "type": "string",
+                                    "description": "ユーザーのDID"
+                                },
+                                "limit": {
+                                    "type": "integer",
+                                    "description": "取得するカード数の上限",
+                                    "default": 10
+                                }
+                            },
+                            "required": ["did"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "card_draw_card",
+                        "description": "ガチャを引いてカードを取得します",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "did": {
+                                    "type": "string",
+                                    "description": "ユーザーのDID"
+                                },
+                                "is_paid": {
+                                    "type": "boolean",
+                                    "description": "有料ガチャかどうか",
+                                    "default": False
+                                }
+                            },
+                            "required": ["did"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "card_analyze_collection",
+                        "description": "ユーザーのカードコレクションを分析します",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "did": {
+                                    "type": "string",
+                                    "description": "ユーザーのDID"
+                                }
+                            },
+                            "required": ["did"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "card_get_gacha_stats",
+                        "description": "ガチャの統計情報を取得します",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {}
+                        }
+                    }
+                }
+            ]
+            tools.extend(card_tools)
+        
         return tools
     
     async def generate_response(
@@ -298,7 +377,7 @@ Recent memories:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": self.config_system_prompt or "あなたは記憶システムと関係性データにアクセスできます。過去の会話、記憶、関係性について質問された時は、必ずツールを使用して正確な情報を取得してください。「覚えている」「前回」「以前」「について話した」「関係」などのキーワードがあれば積極的にツールを使用してください。"},
+                    {"role": "system", "content": self.config_system_prompt or "あなたは記憶システムと関係性データ、カードゲームシステムにアクセスできます。過去の会話、記憶、関係性について質問された時は、必ずツールを使用して正確な情報を取得してください。「覚えている」「前回」「以前」「について話した」「関係」などのキーワードがあれば積極的にツールを使用してください。カード関連の質問（「カード」「コレクション」「ガチャ」「見せて」「持っている」など）では、必ずcard_get_user_cardsやcard_analyze_collectionなどのツールを使用してください。didパラメータには現在会話しているユーザーのID（例：'syui'）を使用してください。"},
                     {"role": "user", "content": prompt}
                 ],
                 tools=tools,
@@ -383,6 +462,49 @@ Recent memories:
                 result = await self.mcp_client.get_relationship(user_id)
                 print(f"🔍 [DEBUG] MCP result: {result}")
                 return result or {"error": "関係性の取得に失敗しました"}
+            
+            # ai.card tools
+            elif function_name == "card_get_user_cards":
+                did = arguments.get("did", context_user_id)
+                limit = arguments.get("limit", 10)
+                result = await self.mcp_client.card_get_user_cards(did, limit)
+                # Check if ai.card server is not running
+                if result and result.get("error") == "ai.card server is not running":
+                    return {
+                        "error": "ai.cardサーバーが起動していません",
+                        "message": "カードシステムを使用するには、別のターミナルで以下のコマンドを実行してください:\ncd card && ./start_server.sh"
+                    }
+                return result or {"error": "カード一覧の取得に失敗しました"}
+            
+            elif function_name == "card_draw_card":
+                did = arguments.get("did", context_user_id)
+                is_paid = arguments.get("is_paid", False)
+                result = await self.mcp_client.card_draw_card(did, is_paid)
+                if result and result.get("error") == "ai.card server is not running":
+                    return {
+                        "error": "ai.cardサーバーが起動していません",
+                        "message": "カードシステムを使用するには、別のターミナルで以下のコマンドを実行してください:\ncd card && ./start_server.sh"
+                    }
+                return result or {"error": "ガチャに失敗しました"}
+            
+            elif function_name == "card_analyze_collection":
+                did = arguments.get("did", context_user_id)
+                result = await self.mcp_client.card_analyze_collection(did)
+                if result and result.get("error") == "ai.card server is not running":
+                    return {
+                        "error": "ai.cardサーバーが起動していません",
+                        "message": "カードシステムを使用するには、別のターミナルで以下のコマンドを実行してください:\ncd card && ./start_server.sh"
+                    }
+                return result or {"error": "コレクション分析に失敗しました"}
+            
+            elif function_name == "card_get_gacha_stats":
+                result = await self.mcp_client.card_get_gacha_stats()
+                if result and result.get("error") == "ai.card server is not running":
+                    return {
+                        "error": "ai.cardサーバーが起動していません",
+                        "message": "カードシステムを使用するには、別のターミナルで以下のコマンドを実行してください:\ncd card && ./start_server.sh"
+                    }
+                return result or {"error": "ガチャ統計の取得に失敗しました"}
             
             else:
                 return {"error": f"未知のツール: {function_name}"}

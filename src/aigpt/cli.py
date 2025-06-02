@@ -41,6 +41,7 @@ class MCPClient:
         self.auto_detect = self.config.get("mcp.auto_detect", True)
         self.servers = self.config.get("mcp.servers", {})
         self.available = False
+        self.has_card_tools = False
         
         if self.enabled:
             self._check_availability()
@@ -75,6 +76,16 @@ class MCPClient:
                         self.available = True
                         self.active_server = "ai_gpt"
                         print(f"✅ [MCP Client] ai_gpt server connected successfully")
+                        
+                        # Check if card tools are available
+                        try:
+                            card_status = client.get(f"{base_url}/card_system_status")
+                            if card_status.status_code == 200:
+                                self.has_card_tools = True
+                                print(f"✅ [MCP Client] ai.card tools detected and available")
+                        except:
+                            print(f"🔍 [MCP Client] ai.card tools not available")
+                        
                         return
             except Exception as e:
                 print(f"🚨 [MCP Client] ai_gpt connection failed: {e}")
@@ -224,8 +235,70 @@ class MCPClient:
             "display_name": server_config.get("name", self.active_server),
             "base_url": server_config.get("base_url", ""),
             "timeout": server_config.get("timeout", 5.0),
-            "endpoints": len(server_config.get("endpoints", {}))
+            "endpoints": len(server_config.get("endpoints", {})),
+            "has_card_tools": self.has_card_tools
         }
+    
+    # ai.card MCP methods
+    async def card_get_user_cards(self, did: str, limit: int = 10) -> Optional[Dict[str, Any]]:
+        """Get user's card collection via MCP"""
+        if not self.has_card_tools:
+            return {"error": "ai.card tools not available"}
+        
+        url = self._get_url("card_get_user_cards")
+        if not url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=self._get_timeout()) as client:
+                response = await client.get(f"{url}?did={did}&limit={limit}")
+                return response.json() if response.status_code == 200 else None
+        except Exception as e:
+            return {"error": f"Failed to get cards: {str(e)}"}
+    
+    async def card_draw_card(self, did: str, is_paid: bool = False) -> Optional[Dict[str, Any]]:
+        """Draw a card from gacha system via MCP"""
+        if not self.has_card_tools:
+            return {"error": "ai.card tools not available"}
+        
+        url = self._get_url("card_draw_card")
+        if not url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=self._get_timeout()) as client:
+                response = await client.post(url, json={"did": did, "is_paid": is_paid})
+                return response.json() if response.status_code == 200 else None
+        except Exception as e:
+            return {"error": f"Failed to draw card: {str(e)}"}
+    
+    async def card_analyze_collection(self, did: str) -> Optional[Dict[str, Any]]:
+        """Analyze card collection via MCP"""
+        if not self.has_card_tools:
+            return {"error": "ai.card tools not available"}
+        
+        url = self._get_url("card_analyze_collection")
+        if not url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=self._get_timeout()) as client:
+                response = await client.get(f"{url}?did={did}")
+                return response.json() if response.status_code == 200 else None
+        except Exception as e:
+            return {"error": f"Failed to analyze collection: {str(e)}"}
+    
+    async def card_get_gacha_stats(self) -> Optional[Dict[str, Any]]:
+        """Get gacha statistics via MCP"""
+        if not self.has_card_tools:
+            return {"error": "ai.card tools not available"}
+        
+        url = self._get_url("card_get_gacha_stats")
+        if not url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=self._get_timeout()) as client:
+                response = await client.get(url)
+                return response.json() if response.status_code == 200 else None
+        except Exception as e:
+            return {"error": f"Failed to get gacha stats: {str(e)}"}
 
 
 def get_persona(data_dir: Optional[Path] = None) -> Persona:
@@ -248,15 +321,34 @@ def chat(
     """Chat with the AI"""
     persona = get_persona(data_dir)
     
-    # Create AI provider if specified
+    # Get config instance
+    config_instance = Config()
+    
+    # Get defaults from config if not provided
+    if not provider:
+        provider = config_instance.get("default_provider", "ollama")
+    if not model:
+        if provider == "ollama":
+            model = config_instance.get("providers.ollama.default_model", "qwen2.5")
+        else:
+            model = config_instance.get("providers.openai.default_model", "gpt-4o-mini")
+    
+    # Create AI provider with MCP client if needed
     ai_provider = None
-    if provider and model:
-        try:
-            ai_provider = create_ai_provider(provider=provider, model=model)
-            console.print(f"[dim]Using {provider} with model {model}[/dim]\n")
-        except Exception as e:
-            console.print(f"[yellow]Warning: Could not create AI provider: {e}[/yellow]")
-            console.print("[yellow]Falling back to simple responses[/yellow]\n")
+    mcp_client = None
+    
+    try:
+        # Create MCP client for OpenAI provider
+        if provider == "openai":
+            mcp_client = MCPClient(config_instance)
+            if mcp_client.available:
+                console.print(f"[dim]MCP client connected to {mcp_client.active_server}[/dim]")
+        
+        ai_provider = create_ai_provider(provider=provider, model=model, mcp_client=mcp_client)
+        console.print(f"[dim]Using {provider} with model {model}[/dim]\n")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Could not create AI provider: {e}[/yellow]")
+        console.print("[yellow]Falling back to simple responses[/yellow]\n")
     
     # Process interaction
     response, relationship_delta = persona.process_interaction(user_id, message, ai_provider)
@@ -465,6 +557,10 @@ def server(
     system_endpoints = ["get_persona_state", "get_fortune", "run_maintenance"]
     shell_endpoints = ["execute_command", "analyze_file", "write_file", "list_files", "read_project_file"]
     remote_endpoints = ["remote_shell", "ai_bot_status", "isolated_python", "isolated_analysis"]
+    card_endpoints = ["card_get_user_cards", "card_draw_card", "card_get_card_details", "card_analyze_collection", "card_get_gacha_stats", "card_system_status"]
+    
+    # Check if ai.card tools are available
+    has_card_tools = mcp_server.has_card
     
     # Build endpoint summary
     endpoint_summary = f"""🧠 Memory System: {len(memory_endpoints)} tools
@@ -473,9 +569,17 @@ def server(
 💻 Shell Integration: {len(shell_endpoints)} tools
 🔒 Remote Execution: {len(remote_endpoints)} tools"""
     
+    if has_card_tools:
+        endpoint_summary += f"\n🎴 Card Game System: {len(card_endpoints)} tools"
+    
     # Check MCP client connectivity
     mcp_client = MCPClient(config_instance)
     mcp_status = "✅ MCP Client Ready" if mcp_client.available else "⚠️  MCP Client Disabled"
+    
+    # Add ai.card status if available
+    card_status = ""
+    if has_card_tools:
+        card_status = "\n🎴 ai.card: ./card directory detected"
     
     # Provider configuration check
     provider_status = "✅ Ready"
@@ -500,7 +604,7 @@ def server(
         f"{endpoint_summary}\n\n"
         f"[green]Integration Status:[/green]\n"
         f"{mcp_status}\n"
-        f"🔗 Config: {config_instance.config_file}\n\n"
+        f"🔗 Config: {config_instance.config_file}{card_status}\n\n"
         f"[dim]Press Ctrl+C to stop server[/dim]",
         title="🔧 MCP Server Startup",
         border_style="green",
@@ -1367,7 +1471,15 @@ def conversation(
                     console.print("  /search <keywords> - Search memories")
                     console.print("  /context <query>   - Get contextual memories")
                     console.print("  /relationship      - Show relationship via MCP")
-                console.print("  <message> - Chat with AI\n")
+                    
+                    if mcp_client.has_card_tools:
+                        console.print(f"\n[cyan]Card Commands:[/cyan]")
+                        console.print("  AI can answer questions about cards:")
+                        console.print("  - 'Show my cards'")
+                        console.print("  - 'Draw a card' / 'Gacha'")
+                        console.print("  - 'Analyze my collection'")
+                        console.print("  - 'Show gacha stats'")
+                console.print("\n  <message> - Chat with AI\n")
                 continue
                 
             elif user_input.lower() == '/clear':

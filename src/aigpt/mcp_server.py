@@ -34,7 +34,15 @@ class AIGptMcpServer:
         # Create MCP server with FastAPI app
         self.server = FastApiMCP(self.app)
         
+        # Check if ai.card exists
+        self.card_dir = Path("./card")
+        self.has_card = self.card_dir.exists() and self.card_dir.is_dir()
+        
         self._register_tools()
+        
+        # Register ai.card tools if available
+        if self.has_card:
+            self._register_card_tools()
     
     def _register_tools(self):
         """Register all MCP tools"""
@@ -484,6 +492,148 @@ class AIGptMcpServer:
             # Python コードを /sh 経由で実行
             python_command = f'python3 -c "{code.replace('"', '\\"')}"'
             return await remote_shell(python_command, ai_bot_url)
+    
+    def _register_card_tools(self):
+        """Register ai.card MCP tools when card directory exists"""
+        logger.info("Registering ai.card tools...")
+        
+        @self.app.get("/card_get_user_cards", operation_id="card_get_user_cards")
+        async def card_get_user_cards(did: str, limit: int = 10) -> Dict[str, Any]:
+            """Get user's card collection from ai.card system"""
+            logger.info(f"🎴 [ai.card] Getting cards for did: {did}, limit: {limit}")
+            try:
+                url = "http://localhost:8000/get_user_cards"
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    logger.info(f"🎴 [ai.card] Calling: {url}")
+                    response = await client.get(
+                        url,
+                        params={"did": did, "limit": limit}
+                    )
+                    if response.status_code == 200:
+                        cards = response.json()
+                        return {
+                            "cards": cards,
+                            "count": len(cards),
+                            "did": did
+                        }
+                    else:
+                        return {"error": f"Failed to get cards: {response.status_code}"}
+            except httpx.ConnectError:
+                return {
+                    "error": "ai.card server is not running",
+                    "hint": "Please start ai.card server: cd card && ./start_server.sh",
+                    "details": "Connection refused to http://localhost:8000"
+                }
+            except Exception as e:
+                return {"error": f"ai.card connection failed: {str(e)}"}
+        
+        @self.app.post("/card_draw_card", operation_id="card_draw_card")
+        async def card_draw_card(did: str, is_paid: bool = False) -> Dict[str, Any]:
+            """Draw a card from gacha system"""
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.post(
+                        f"http://localhost:8000/draw_card?did={did}&is_paid={is_paid}"
+                    )
+                    if response.status_code == 200:
+                        return response.json()
+                    else:
+                        return {"error": f"Failed to draw card: {response.status_code}"}
+            except httpx.ConnectError:
+                return {
+                    "error": "ai.card server is not running",
+                    "hint": "Please start ai.card server: cd card && ./start_server.sh",
+                    "details": "Connection refused to http://localhost:8000"
+                }
+            except Exception as e:
+                return {"error": f"ai.card connection failed: {str(e)}"}
+        
+        @self.app.get("/card_get_card_details", operation_id="card_get_card_details")
+        async def card_get_card_details(card_id: int) -> Dict[str, Any]:
+            """Get detailed information about a specific card"""
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get(
+                        "http://localhost:8000/get_card_details",
+                        params={"card_id": card_id}
+                    )
+                    if response.status_code == 200:
+                        return response.json()
+                    else:
+                        return {"error": f"Failed to get card details: {response.status_code}"}
+            except httpx.ConnectError:
+                return {
+                    "error": "ai.card server is not running",
+                    "hint": "Please start ai.card server: cd card && ./start_server.sh",
+                    "details": "Connection refused to http://localhost:8000"
+                }
+            except Exception as e:
+                return {"error": f"ai.card connection failed: {str(e)}"}
+        
+        @self.app.get("/card_analyze_collection", operation_id="card_analyze_collection")
+        async def card_analyze_collection(did: str) -> Dict[str, Any]:
+            """Analyze user's card collection statistics"""
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get(
+                        "http://localhost:8000/analyze_card_collection",
+                        params={"did": did}
+                    )
+                    if response.status_code == 200:
+                        return response.json()
+                    else:
+                        return {"error": f"Failed to analyze collection: {response.status_code}"}
+            except httpx.ConnectError:
+                return {
+                    "error": "ai.card server is not running",
+                    "hint": "Please start ai.card server: cd card && ./start_server.sh",
+                    "details": "Connection refused to http://localhost:8000"
+                }
+            except Exception as e:
+                return {"error": f"ai.card connection failed: {str(e)}"}
+        
+        @self.app.get("/card_get_gacha_stats", operation_id="card_get_gacha_stats")
+        async def card_get_gacha_stats() -> Dict[str, Any]:
+            """Get gacha system statistics"""
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get("http://localhost:8000/get_gacha_stats")
+                    if response.status_code == 200:
+                        return response.json()
+                    else:
+                        return {"error": f"Failed to get gacha stats: {response.status_code}"}
+            except httpx.ConnectError:
+                return {
+                    "error": "ai.card server is not running",
+                    "hint": "Please start ai.card server: cd card && ./start_server.sh",
+                    "details": "Connection refused to http://localhost:8000"
+                }
+            except Exception as e:
+                return {"error": f"ai.card connection failed: {str(e)}"}
+        
+        @self.app.get("/card_system_status", operation_id="card_system_status")
+        async def card_system_status() -> Dict[str, Any]:
+            """Check ai.card system status"""
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    response = await client.get("http://localhost:8000/health")
+                    if response.status_code == 200:
+                        return {
+                            "status": "online",
+                            "health": response.json(),
+                            "card_dir": str(self.card_dir)
+                        }
+                    else:
+                        return {
+                            "status": "error",
+                            "error": f"Health check failed: {response.status_code}"
+                        }
+            except Exception as e:
+                return {
+                    "status": "offline",
+                    "error": f"ai.card is not running: {str(e)}",
+                    "hint": "Start ai.card with: cd card && ./start_server.sh"
+                }
         
         @self.app.post("/isolated_analysis", operation_id="isolated_analysis")
         async def isolated_analysis(file_path: str, analysis_type: str = "structure", ai_bot_url: str = "http://localhost:8080") -> Dict[str, Any]:

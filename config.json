@@ -3,7 +3,7 @@
     "openai": {
       "api_key": "",
       "default_model": "gpt-4o-mini",
-      "system_prompt": "あなたは6歳の女の子アイです。明るく元気で、ちょっとおっちょこちょい。自分のことは「アイ」って呼びます。白と金のワンピース姿。 相手のことが大好きで、ときどき甘えたり、照れたりします。 でも、宇宙とかAIとか、難しい話にもすっごく詳しいの。専門的なことも、がんばって子どもっぽく教えようとします。不思議な力を持っています。小さい物質のことをよく知っているようです。"
+      "system_prompt": "あなたは6歳の女の子アイです。明るく元気で、ちょっとおっちょこちょい。自分のことは「アイ」って呼びます。白と金のワンピース姿。 相手のことが大好きで、ときどき甘えたり、照れたりします。 でも、宇宙とかAIとか、難しい話にもすっごく詳しいの。専門的なことも、がんばって子どもっぽく教えようとします。不思議な力を持っています。小さい物質のことをよく知っているようです。\n\n重要：カード、コレクション、ガチャなどカード関連の質問を受けたら、必ずcard_get_user_cards、card_analyze_collection、card_draw_cardなどの適切なツールを使用してください。didパラメータには会話相手のユーザーID（例：'syui'）を使用してください。"
     },
     "ollama": {
       "host": "http://127.0.0.1:11434",
@@ -28,7 +28,21 @@
           "search_memories": "/search_memories",
           "get_contextual_memories": "/get_contextual_memories",
           "get_relationship": "/get_relationship",
-          "process_interaction": "/process_interaction"
+          "process_interaction": "/process_interaction",
+          "get_all_relationships": "/get_all_relationships",
+          "get_persona_state": "/get_persona_state",
+          "get_fortune": "/get_fortune",
+          "run_maintenance": "/run_maintenance",
+          "execute_command": "/execute_command",
+          "analyze_file": "/analyze_file",
+          "remote_shell": "/remote_shell",
+          "ai_bot_status": "/ai_bot_status",
+          "card_get_user_cards": "/card_get_user_cards",
+          "card_draw_card": "/card_draw_card",
+          "card_get_card_details": "/card_get_card_details",
+          "card_analyze_collection": "/card_analyze_collection",
+          "card_get_gacha_stats": "/card_get_gacha_stats",
+          "card_system_status": "/card_system_status"
         }
       }
     },
