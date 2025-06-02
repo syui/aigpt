@@ -20,6 +20,7 @@ from .mcp_server import AIGptMcpServer
 from .ai_provider import create_ai_provider
 from .scheduler import AIScheduler, TaskType
 from .config import Config
+from .project_manager import ContinuousDeveloper
 
 app = typer.Typer(help="ai.gpt - Autonomous transmission AI with unique personality")
 console = Console()
@@ -53,7 +54,7 @@ def chat(
     ai_provider = None
     if provider and model:
         try:
-            ai_provider = create_ai_provider(provider, model)
+            ai_provider = create_ai_provider(provider=provider, model=model)
             console.print(f"[dim]Using {provider} with model {model}[/dim]\n")
         except Exception as e:
             console.print(f"[yellow]Warning: Could not create AI provider: {e}[/yellow]")
@@ -228,8 +229,7 @@ def server(
     port: int = typer.Option(8000, "--port", "-p", help="Server port"),
     data_dir: Optional[Path] = typer.Option(None, "--data-dir", "-d", help="Data directory"),
     model: str = typer.Option("qwen2.5", "--model", "-m", help="AI model to use"),
-    provider: str = typer.Option("ollama", "--provider", help="AI provider (ollama/openai)"),
-    enable_card: bool = typer.Option(False, "--enable-card", help="Enable ai.card integration")
+    provider: str = typer.Option("ollama", "--provider", help="AI provider (ollama/openai)")
 ):
     """Run MCP server for AI integration"""
     import uvicorn
@@ -240,7 +240,7 @@ def server(
     data_dir.mkdir(parents=True, exist_ok=True)
     
     # Create MCP server
-    mcp_server = AIGptMcpServer(data_dir, enable_card_integration=enable_card)
+    mcp_server = AIGptMcpServer(data_dir)
     app_instance = mcp_server.app
     
     console.print(Panel(
@@ -248,8 +248,7 @@ def server(
         f"Host: {host}:{port}\n"
         f"Provider: {provider}\n"
         f"Model: {model}\n"
-        f"Data: {data_dir}\n"
-        f"Card Integration: {'✓ Enabled' if enable_card else '✗ Disabled'}",
+        f"Data: {data_dir}",
         title="MCP Server",
         border_style="green"
     ))
@@ -390,7 +389,7 @@ def shell(
     ai_provider = None
     if provider and model:
         try:
-            ai_provider = create_ai_provider(provider, model)
+            ai_provider = create_ai_provider(provider=provider, model=model)
             console.print(f"[dim]Using {provider} with model {model}[/dim]\n")
         except Exception as e:
             console.print(f"[yellow]Warning: Could not create AI provider: {e}[/yellow]")
@@ -422,7 +421,13 @@ def shell(
     # AI-specific commands
     ai_commands = ['analyze', 'generate', 'explain', 'optimize', 'refactor', 'test', 'document']
     
-    all_commands = builtin_commands + ['!' + cmd for cmd in shell_commands] + ai_commands
+    # Remote execution commands (ai.bot integration)
+    remote_commands = ['remote', 'isolated', 'aibot-status']
+    
+    # Project management commands (Claude Code-like)
+    project_commands = ['project-status', 'suggest-next', 'continuous']
+    
+    all_commands = builtin_commands + ['!' + cmd for cmd in shell_commands] + ai_commands + remote_commands + project_commands
     completer = WordCompleter(all_commands, ignore_case=True)
     
     # History file
@@ -468,6 +473,14 @@ def shell(
                     "  analyze <file>    - Analyze a file with AI\n"
                     "  generate <desc>   - Generate code from description\n"
                     "  explain <topic>   - Get AI explanation\n\n"
+                    "[cyan]Remote Commands (ai.bot):[/cyan]\n"
+                    "  remote <command>  - Execute command in isolated container\n"
+                    "  isolated <code>   - Run Python code in isolated environment\n"
+                    "  aibot-status      - Check ai.bot server status\n\n"
+                    "[cyan]Project Commands (Claude Code-like):[/cyan]\n"
+                    "  project-status    - Analyze current project structure\n"
+                    "  suggest-next      - AI suggests next development steps\n"
+                    "  continuous        - Enable continuous development mode\n\n"
                     "You can also type any message to chat with AI\n"
                     "Use Tab for command completion",
                     title="Help",
@@ -560,27 +573,38 @@ def shell(
             
             # AI-powered commands
             elif user_input.lower().startswith('analyze '):
-                # Analyze file or code
+                # Analyze file or code with project context
                 target = user_input[8:].strip()
                 if os.path.exists(target):
-                    console.print(f"[cyan]Analyzing {target}...[/cyan]")
-                    with open(target, 'r') as f:
-                        content = f.read()
-                    
-                    analysis_prompt = f"Analyze this file and provide insights:\n\n{content[:2000]}"
-                    response, _ = persona.process_interaction(current_user, analysis_prompt, ai_provider)
-                    console.print(f"\n[cyan]Analysis:[/cyan]\n{response}")
+                    console.print(f"[cyan]Analyzing {target} with project context...[/cyan]")
+                    try:
+                        developer = ContinuousDeveloper(Path.cwd(), ai_provider)
+                        analysis = developer.analyze_file(target)
+                        console.print(f"\n[cyan]Analysis:[/cyan]\n{analysis}")
+                    except Exception as e:
+                        # Fallback to simple analysis
+                        with open(target, 'r') as f:
+                            content = f.read()
+                        analysis_prompt = f"Analyze this file and provide insights:\n\n{content[:2000]}"
+                        response, _ = persona.process_interaction(current_user, analysis_prompt, ai_provider)
+                        console.print(f"\n[cyan]Analysis:[/cyan]\n{response}")
                 else:
                     console.print(f"[red]File not found: {target}[/red]")
             
             elif user_input.lower().startswith('generate '):
-                # Generate code
+                # Generate code with project context
                 gen_prompt = user_input[9:].strip()
                 if gen_prompt:
-                    console.print("[cyan]Generating code...[/cyan]")
-                    full_prompt = f"Generate code for: {gen_prompt}. Provide clean, well-commented code."
-                    response, _ = persona.process_interaction(current_user, full_prompt, ai_provider)
-                    console.print(f"\n[cyan]Generated Code:[/cyan]\n{response}")
+                    console.print("[cyan]Generating code with project context...[/cyan]")
+                    try:
+                        developer = ContinuousDeveloper(Path.cwd(), ai_provider)
+                        generated_code = developer.generate_code(gen_prompt)
+                        console.print(f"\n[cyan]Generated Code:[/cyan]\n{generated_code}")
+                    except Exception as e:
+                        # Fallback to simple generation
+                        full_prompt = f"Generate code for: {gen_prompt}. Provide clean, well-commented code."
+                        response, _ = persona.process_interaction(current_user, full_prompt, ai_provider)
+                        console.print(f"\n[cyan]Generated Code:[/cyan]\n{response}")
             
             elif user_input.lower().startswith('explain '):
                 # Explain code or concept
@@ -590,6 +614,152 @@ def shell(
                     full_prompt = f"Explain this in detail: {topic}"
                     response, _ = persona.process_interaction(current_user, full_prompt, ai_provider)
                     console.print(f"\n[cyan]Explanation:[/cyan]\n{response}")
+            
+            # Remote execution commands (ai.bot integration)
+            elif user_input.lower().startswith('remote '):
+                # Execute command in ai.bot isolated container
+                command = user_input[7:].strip()
+                if command:
+                    console.print(f"[cyan]Executing remotely:[/cyan] {command}")
+                    try:
+                        import httpx
+                        import asyncio
+                        
+                        async def execute_remote():
+                            async with httpx.AsyncClient(timeout=30.0) as client:
+                                response = await client.post(
+                                    "http://localhost:8080/sh",
+                                    json={"command": command},
+                                    headers={"Content-Type": "application/json"}
+                                )
+                                return response
+                        
+                        response = asyncio.run(execute_remote())
+                        
+                        if response.status_code == 200:
+                            result = response.json()
+                            console.print(f"[green]Output:[/green]\n{result.get('output', '')}")
+                            if result.get('error'):
+                                console.print(f"[red]Error:[/red] {result.get('error')}")
+                            console.print(f"[dim]Exit code: {result.get('exit_code', 0)} | Execution time: {result.get('execution_time', 'N/A')}[/dim]")
+                        else:
+                            console.print(f"[red]ai.bot error: HTTP {response.status_code}[/red]")
+                    except Exception as e:
+                        console.print(f"[red]Failed to connect to ai.bot: {e}[/red]")
+            
+            elif user_input.lower().startswith('isolated '):
+                # Execute Python code in isolated environment
+                code = user_input[9:].strip()
+                if code:
+                    console.print(f"[cyan]Running Python code in isolated container...[/cyan]")
+                    try:
+                        import httpx
+                        import asyncio
+                        
+                        async def execute_python():
+                            python_command = f'python3 -c "{code.replace('"', '\\"')}"'
+                            async with httpx.AsyncClient(timeout=30.0) as client:
+                                response = await client.post(
+                                    "http://localhost:8080/sh",
+                                    json={"command": python_command},
+                                    headers={"Content-Type": "application/json"}
+                                )
+                                return response
+                        
+                        response = asyncio.run(execute_python())
+                        
+                        if response.status_code == 200:
+                            result = response.json()
+                            console.print(f"[green]Python Output:[/green]\n{result.get('output', '')}")
+                            if result.get('error'):
+                                console.print(f"[red]Error:[/red] {result.get('error')}")
+                        else:
+                            console.print(f"[red]ai.bot error: HTTP {response.status_code}[/red]")
+                    except Exception as e:
+                        console.print(f"[red]Failed to execute Python code: {e}[/red]")
+            
+            elif user_input.lower() == 'aibot-status':
+                # Check ai.bot server status
+                console.print("[cyan]Checking ai.bot server status...[/cyan]")
+                try:
+                    import httpx
+                    import asyncio
+                    
+                    async def check_status():
+                        async with httpx.AsyncClient(timeout=10.0) as client:
+                            response = await client.get("http://localhost:8080/status")
+                            return response
+                    
+                    response = asyncio.run(check_status())
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        console.print(f"[green]ai.bot is online![/green]")
+                        console.print(f"Server info: {result}")
+                    else:
+                        console.print(f"[yellow]ai.bot responded with status {response.status_code}[/yellow]")
+                except Exception as e:
+                    console.print(f"[red]ai.bot is offline: {e}[/red]")
+                    console.print("[dim]Make sure ai.bot is running on localhost:8080[/dim]")
+            
+            # Project management commands (Claude Code-like)
+            elif user_input.lower() == 'project-status':
+                # プロジェクト構造分析
+                console.print("[cyan]Analyzing project structure...[/cyan]")
+                try:
+                    developer = ContinuousDeveloper(Path.cwd(), ai_provider)
+                    analysis = developer.analyze_project_structure()
+                    changes = developer.project_state.detect_changes()
+                    
+                    console.print(f"[green]Project Analysis:[/green]")
+                    console.print(f"Language: {analysis['language']}")
+                    console.print(f"Framework: {analysis['framework']}")
+                    console.print(f"Structure: {analysis['structure']}")
+                    console.print(f"Dependencies: {analysis['dependencies']}")
+                    console.print(f"Code Patterns: {analysis['patterns']}")
+                    
+                    if changes:
+                        console.print(f"\n[yellow]Recent Changes:[/yellow]")
+                        for file_path, change_type in changes.items():
+                            console.print(f"  {change_type}: {file_path}")
+                    else:
+                        console.print(f"\n[dim]No recent changes detected[/dim]")
+                        
+                except Exception as e:
+                    console.print(f"[red]Error analyzing project: {e}[/red]")
+            
+            elif user_input.lower() == 'suggest-next':
+                # 次のステップを提案
+                console.print("[cyan]AI is analyzing project and suggesting next steps...[/cyan]")
+                try:
+                    developer = ContinuousDeveloper(Path.cwd(), ai_provider)
+                    suggestions = developer.suggest_next_steps()
+                    
+                    console.print(f"[green]Suggested Next Steps:[/green]")
+                    for i, suggestion in enumerate(suggestions, 1):
+                        console.print(f"  {i}. {suggestion}")
+                        
+                except Exception as e:
+                    console.print(f"[red]Error generating suggestions: {e}[/red]")
+            
+            elif user_input.lower().startswith('continuous'):
+                # 継続開発モード
+                console.print("[cyan]Enabling continuous development mode...[/cyan]")
+                console.print("[yellow]Continuous mode is experimental. Type 'exit-continuous' to exit.[/yellow]")
+                
+                try:
+                    developer = ContinuousDeveloper(Path.cwd(), ai_provider)
+                    context = developer.load_project_context()
+                    
+                    console.print(f"[green]Project context loaded:[/green]")
+                    console.print(f"Context: {len(context)} characters")
+                    
+                    # Add to session memory for continuous context
+                    persona.process_interaction(current_user, f"Continuous development mode started for project: {context[:500]}", ai_provider)
+                    console.print("[dim]Project context added to AI memory for continuous development.[/dim]")
+                    
+                except Exception as e:
+                    console.print(f"[red]Error starting continuous mode: {e}[/red]")
             
             # Chat command or direct message
             else:
@@ -668,7 +838,8 @@ def config(
             console.print(f"[yellow]Key '{key}' not found[/yellow]")
     
     elif action == "list":
-        keys = config.list_keys(key or "")
+        config_instance = Config()
+        keys = config_instance.list_keys(key or "")
         
         if not keys:
             console.print("[yellow]No configuration keys found[/yellow]")
@@ -679,7 +850,7 @@ def config(
         table.add_column("Value", style="green")
         
         for k in sorted(keys):
-            val = config.get(k)
+            val = config_instance.get(k)
             # Hide sensitive values
             if "password" in k or "api_key" in k:
                 display_val = "***hidden***" if val else "not set"
@@ -693,6 +864,57 @@ def config(
     else:
         console.print(f"[red]Unknown action: {action}[/red]")
         console.print("Valid actions: get, set, delete, list")
+
+
+@app.command()
+def import_chatgpt(
+    file_path: Path = typer.Argument(..., help="Path to ChatGPT export JSON file"),
+    user_id: str = typer.Option("chatgpt_user", "--user-id", "-u", help="User ID for imported conversations"),
+    data_dir: Optional[Path] = typer.Option(None, "--data-dir", "-d", help="Data directory")
+):
+    """Import ChatGPT conversation data into ai.gpt memory system"""
+    from .chatgpt_importer import ChatGPTImporter
+    
+    if data_dir is None:
+        data_dir = DEFAULT_DATA_DIR
+    
+    data_dir.mkdir(parents=True, exist_ok=True)
+    
+    if not file_path.exists():
+        console.print(f"[red]Error: File not found: {file_path}[/red]")
+        raise typer.Exit(1)
+    
+    console.print(f"[cyan]Importing ChatGPT data from {file_path}[/cyan]")
+    console.print(f"User ID: {user_id}")
+    console.print(f"Data directory: {data_dir}")
+    
+    try:
+        importer = ChatGPTImporter(data_dir)
+        stats = importer.import_from_file(file_path, user_id)
+        
+        # Display results
+        table = Table(title="Import Results")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Count", style="green")
+        
+        table.add_row("Conversations imported", str(stats["conversations_imported"]))
+        table.add_row("Total messages", str(stats["messages_imported"]))
+        table.add_row("User messages", str(stats["user_messages"]))
+        table.add_row("Assistant messages", str(stats["assistant_messages"]))
+        table.add_row("Skipped messages", str(stats["skipped_messages"]))
+        
+        console.print(table)
+        console.print(f"[green]✓ Import completed successfully![/green]")
+        
+        # Show next steps
+        console.print("\n[cyan]Next steps:[/cyan]")
+        console.print(f"- Check memories: [yellow]aigpt status[/yellow]")
+        console.print(f"- Chat with AI: [yellow]aigpt chat {user_id} \"hello\"[/yellow]")
+        console.print(f"- View relationships: [yellow]aigpt relationships[/yellow]")
+        
+    except Exception as e:
+        console.print(f"[red]Error during import: {e}[/red]")
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":

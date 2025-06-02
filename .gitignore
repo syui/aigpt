@@ -5,3 +5,4 @@ config/*.db
 mcp/scripts/__*
 data
 __pycache__
+conversations.json

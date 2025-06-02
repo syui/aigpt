@@ -92,27 +92,85 @@ class Persona:
         else:
             return "contemplative"
     
+    def build_context_prompt(self, user_id: str, current_message: str) -> str:
+        """Build context-aware prompt with relevant memories"""
+        # Get contextual memories based on current message
+        memory_groups = self.memory.get_contextual_memories(query=current_message, limit=8)
+        
+        # Build context sections
+        context_parts = []
+        
+        # Core personality elements (always included)
+        if memory_groups["core"]:
+            core_context = "\n".join([mem.content for mem in memory_groups["core"]])
+            context_parts.append(f"CORE PERSONALITY:\n{core_context}")
+        
+        # Recent summaries for context
+        if memory_groups["summary"]:
+            summary_context = "\n".join([mem.summary or mem.content for mem in memory_groups["summary"]])
+            context_parts.append(f"RECENT PATTERNS:\n{summary_context}")
+        
+        # Recent specific interactions
+        if memory_groups["recent"]:
+            recent_context = "\n".join([
+                f"[{mem.timestamp.strftime('%m-%d')}] {mem.content[:100]}..."
+                for mem in memory_groups["recent"][:3]
+            ])
+            context_parts.append(f"RECENT INTERACTIONS:\n{recent_context}")
+        
+        # Get current persona state
+        state = self.get_current_state()
+        
+        # Build final prompt
+        context_prompt = f"""You are an AI with persistent memory and evolving relationships. Your current state:
+
+PERSONALITY: {', '.join([f'{k}={v:.1f}' for k, v in state.base_personality.items()])}
+MOOD: {state.current_mood}
+FORTUNE: {state.fortune.fortune_value}/10
+
+"""
+        
+        if context_parts:
+            context_prompt += "RELEVANT CONTEXT:\n" + "\n\n".join(context_parts) + "\n\n"
+        
+        context_prompt += f"""Respond to this message while staying true to your personality and the established relationship context:
+
+User: {current_message}
+
+AI:"""
+        
+        return context_prompt
+    
     def process_interaction(self, user_id: str, message: str, ai_provider=None) -> tuple[str, float]:
-        """Process user interaction and generate response"""
+        """Process user interaction and generate response with enhanced context"""
         # Get current state
         state = self.get_current_state()
         
         # Get relationship with user
         relationship = self.relationships.get_or_create_relationship(user_id)
         
-        # Simple response generation (use AI provider if available)
+        # Enhanced response generation with context awareness
         if relationship.is_broken:
             response = "..."
             relationship_delta = 0.0
         else:
             if ai_provider:
-                # Use AI provider for response generation
-                memories = self.memory.get_active_memories(limit=5)
-                import asyncio
-                response = asyncio.run(
-                    ai_provider.generate_response(message, state, memories)
-                )
-                # Calculate relationship delta based on interaction quality
+                # Build context-aware prompt
+                context_prompt = self.build_context_prompt(user_id, message)
+                
+                # Generate response using AI with full context
+                try:
+                    response = ai_provider.chat(context_prompt, max_tokens=200)
+                    
+                    # Clean up response if it includes the prompt echo
+                    if "AI:" in response:
+                        response = response.split("AI:")[-1].strip()
+                        
+                except Exception as e:
+                    self.logger.error(f"AI response generation failed: {e}")
+                    response = f"I appreciate your message about {message[:50]}..."
+                
+                # Calculate relationship delta based on interaction quality and context
                 if state.current_mood in ["joyful", "cheerful"]:
                     relationship_delta = 2.0
                 elif relationship.status.value == "close_friend":
@@ -120,8 +178,14 @@ class Persona:
                 else:
                     relationship_delta = 1.0
             else:
-                # Fallback to simple responses
-                if state.current_mood == "joyful":
+                # Context-aware fallback responses
+                memory_groups = self.memory.get_contextual_memories(query=message, limit=3)
+                
+                if memory_groups["core"]:
+                    # Reference core memories for continuity
+                    response = f"Based on our relationship, I think {message.lower()} connects to what we've discussed before."
+                    relationship_delta = 1.5
+                elif state.current_mood == "joyful":
                     response = f"What a wonderful day! {message} sounds interesting!"
                     relationship_delta = 2.0
                 elif relationship.status.value == "close_friend":
@@ -171,11 +235,16 @@ class Persona:
         if core_memories:
             self.logger.info(f"Identified {len(core_memories)} new core memories")
         
-        # Create memory summaries
+        # Create memory summaries  
         for user_id in self.relationships.relationships:
-            summary = self.memory.summarize_memories(user_id)
-            if summary:
-                self.logger.info(f"Created summary for interactions with {user_id}")
+            try:
+                from .ai_provider import create_ai_provider
+                ai_provider = create_ai_provider()
+                summary = self.memory.create_smart_summary(user_id, ai_provider=ai_provider)
+                if summary:
+                    self.logger.info(f"Created smart summary for interactions with {user_id}")
+            except Exception as e:
+                self.logger.warning(f"Could not create AI summary for {user_id}: {e}")
         
         self._save_state()
         self.logger.info("Daily maintenance completed")

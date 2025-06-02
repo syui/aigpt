@@ -4,6 +4,18 @@
 
 ai.gptの設定は `~/.config/syui/ai/gpt/config.json` に保存されます。
 
+## 仮想環境の場所
+
+ai.gptの仮想環境は `~/.config/syui/ai/gpt/venv/` に配置されます。これにより、設定とデータが一か所にまとまります。
+
+```bash
+# 仮想環境の有効化
+source ~/.config/syui/ai/gpt/venv/bin/activate
+
+# aigptコマンドが利用可能に
+aigpt --help
+```
+
 ## 設定構造
 
 ```json
@@ -97,6 +109,17 @@ cp ~/.config/syui/ai/gpt/config.json ~/.config/syui/ai/gpt/config.json.backup
 # リストア
 cp ~/.config/syui/ai/gpt/config.json.backup ~/.config/syui/ai/gpt/config.json
 ```
+
+## データディレクトリ
+
+記憶データは `~/.config/syui/ai/gpt/data/` に保存されます：
+
+```bash
+ls ~/.config/syui/ai/gpt/data/
+# conversations.json   memories.json   relationships.json   personas.json
+```
+
+これらのファイルも設定と同様にバックアップを推奨します。
 
 ## トラブルシューティング
 

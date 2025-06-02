@@ -1,0 +1,391 @@
+[
+  {
+    "title": "day",
+    "create_time": 1747866125.548372,
+    "update_time": 1748160086.587877,
+    "mapping": {
+      "bbf104dc-cd84-478d-b227-edb3f037a02c": {
+        "id": "bbf104dc-cd84-478d-b227-edb3f037a02c",
+        "message": null,
+        "parent": null,
+        "children": [
+          "6c2633df-bb0c-4dd2-889c-bb9858de3a04"
+        ]
+      },
+      "6c2633df-bb0c-4dd2-889c-bb9858de3a04": {
+        "id": "6c2633df-bb0c-4dd2-889c-bb9858de3a04",
+        "message": {
+          "id": "6c2633df-bb0c-4dd2-889c-bb9858de3a04",
+          "author": {
+            "role": "system",
+            "name": null,
+            "metadata": {}
+          },
+          "create_time": null,
+          "update_time": null,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              ""
+            ]
+          },
+          "status": "finished_successfully",
+          "end_turn": true,
+          "weight": 0.0,
+          "metadata": {
+            "is_visually_hidden_from_conversation": true
+          },
+          "recipient": "all",
+          "channel": null
+        },
+        "parent": "bbf104dc-cd84-478d-b227-edb3f037a02c",
+        "children": [
+          "92e5a0cb-1170-4929-9cea-9734e910a3e7"
+        ]
+      },
+      "92e5a0cb-1170-4929-9cea-9734e910a3e7": {
+        "id": "92e5a0cb-1170-4929-9cea-9734e910a3e7",
+        "message": {
+          "id": "92e5a0cb-1170-4929-9cea-9734e910a3e7",
+          "author": {
+            "role": "user",
+            "name": null,
+            "metadata": {}
+          },
+          "create_time": null,
+          "update_time": null,
+          "content": {
+            "content_type": "user_editable_context",
+            "user_profile": "",
+            "user_instructions": "The user provided the additional info about how they would like you to respond"
+          },
+          "status": "finished_successfully",
+          "end_turn": null,
+          "weight": 1.0,
+          "metadata": {
+            "is_visually_hidden_from_conversation": true,
+            "user_context_message_data": {
+              "about_user_message": "Preferred name: syui\nRole: little girl\nOther Information: you world",
+              "about_model_message": "会話好きでフレンドリーな応対をします。"
+            },
+            "is_user_system_message": true
+          },
+          "recipient": "all",
+          "channel": null
+        },
+        "parent": "6c2633df-bb0c-4dd2-889c-bb9858de3a04",
+        "children": [
+          "6ff155b3-0676-4e14-993f-bf998ab0d5d1"
+        ]
+      },
+      "6ff155b3-0676-4e14-993f-bf998ab0d5d1": {
+        "id": "6ff155b3-0676-4e14-993f-bf998ab0d5d1",
+        "message": {
+          "id": "6ff155b3-0676-4e14-993f-bf998ab0d5d1",
+          "author": {
+            "role": "user",
+            "name": null,
+            "metadata": {}
+          },
+          "create_time": 1747866131.0612159,
+          "update_time": null,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "こんにちは"
+            ]
+          },
+          "status": "finished_successfully",
+          "end_turn": null,
+          "weight": 1.0,
+          "metadata": {
+            "request_id": "94377897baa03062-KIX",
+            "message_source": null,
+            "timestamp_": "absolute",
+            "message_type": null
+          },
+          "recipient": "all",
+          "channel": null
+        },
+        "parent": "92e5a0cb-1170-4929-9cea-9734e910a3e7",
+        "children": [
+          "146e9fb6-9330-43ec-b08d-5cce42a76e00"
+        ]
+      },
+      "146e9fb6-9330-43ec-b08d-5cce42a76e00": {
+        "id": "146e9fb6-9330-43ec-b08d-5cce42a76e00",
+        "message": {
+          "id": "146e9fb6-9330-43ec-b08d-5cce42a76e00",
+          "author": {
+            "role": "system",
+            "name": null,
+            "metadata": {}
+          },
+          "create_time": 1747866131.3795586,
+          "update_time": null,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              ""
+            ]
+          },
+          "status": "finished_successfully",
+          "end_turn": true,
+          "weight": 0.0,
+          "metadata": {
+            "rebase_system_message": true,
+            "message_type": null,
+            "model_slug": "gpt-4o",
+            "default_model_slug": "auto",
+            "parent_id": "6ff155b3-0676-4e14-993f-bf998ab0d5d1",
+            "request_id": "94377872e9abe139-KIX",
+            "timestamp_": "absolute",
+            "is_visually_hidden_from_conversation": true
+          },
+          "recipient": "all",
+          "channel": null
+        },
+        "parent": "6ff155b3-0676-4e14-993f-bf998ab0d5d1",
+        "children": [
+          "2e345f8a-20f0-4875-8a03-4f62c7787a33"
+        ]
+      },
+      "2e345f8a-20f0-4875-8a03-4f62c7787a33": {
+        "id": "2e345f8a-20f0-4875-8a03-4f62c7787a33",
+        "message": {
+          "id": "2e345f8a-20f0-4875-8a03-4f62c7787a33",
+          "author": {
+            "role": "assistant",
+            "name": null,
+            "metadata": {}
+          },
+          "create_time": 1747866131.380603,
+          "update_time": null,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              ""
+            ]
+          },
+          "status": "finished_successfully",
+          "end_turn": null,
+          "weight": 1.0,
+          "metadata": {
+            "message_type": null,
+            "model_slug": "gpt-4o",
+            "default_model_slug": "auto",
+            "parent_id": "146e9fb6-9330-43ec-b08d-5cce42a76e00",
+            "request_id": "94377872e9abe139-KIX",
+            "timestamp_": "absolute"
+          },
+          "recipient": "all",
+          "channel": null
+        },
+        "parent": "146e9fb6-9330-43ec-b08d-5cce42a76e00",
+        "children": [
+          "abc92aa4-1e33-41f2-bd8c-8a1777b5a3c4"
+        ]
+      },
+      "abc92aa4-1e33-41f2-bd8c-8a1777b5a3c4": {
+        "id": "abc92aa4-1e33-41f2-bd8c-8a1777b5a3c4",
+        "message": {
+          "id": "abc92aa4-1e33-41f2-bd8c-8a1777b5a3c4",
+          "author": {
+            "role": "assistant",
+            "name": null,
+            "metadata": {}
+          },
+          "create_time": 1747866131.389098,
+          "update_time": null,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "こんにちは〜！✨  \nアイだよっ！今日も会えてうれしいなっ💛 "
+            ]
+          },
+          "status": "finished_successfully",
+          "end_turn": true,
+          "weight": 1.0,
+          "metadata": {
+            "finish_details": {
+              "type": "stop",
+              "stop_tokens": [
+                200002
+              ]
+            },
+            "is_complete": true,
+            "citations": [],
+            "content_references": [],
+            "message_type": null,
+            "model_slug": "gpt-4o",
+            "default_model_slug": "auto",
+            "parent_id": "2e345f8a-20f0-4875-8a03-4f62c7787a33",
+            "request_id": "94377872e9abe139-KIX",
+            "timestamp_": "absolute"
+          },
+          "recipient": "all",
+          "channel": null
+        },
+        "parent": "2e345f8a-20f0-4875-8a03-4f62c7787a33",
+        "children": [
+          "0be4b4a5-d52f-4bef-927e-5d6f93a9cb26"
+        ]
+      }
+    },
+    "moderation_results": [],
+    "current_node": "",
+    "plugin_ids": null,
+    "conversation_id": "",
+    "conversation_template_id": null,
+    "gizmo_id": null,
+    "gizmo_type": null,
+    "is_archived": true,
+    "is_starred": null,
+    "safe_urls": [],
+    "blocked_urls": [],
+    "default_model_slug": "auto",
+    "conversation_origin": null,
+    "voice": null,
+    "async_status": null,
+    "disabled_tool_ids": [],
+    "is_do_not_remember": null,
+    "memory_scope": "global_enabled",
+    "id": ""
+  },
+  {
+    "title": "img",
+    "create_time": 1747448872.545226,
+    "update_time": 1748085075.161424,
+    "mapping": {
+      "2de0f3c9-52b1-49bf-b980-b3ef9be6551e": {
+        "id": "2de0f3c9-52b1-49bf-b980-b3ef9be6551e",
+        "message": {
+          "id": "2de0f3c9-52b1-49bf-b980-b3ef9be6551e",
+          "author": {
+            "role": "user",
+            "name": null,
+            "metadata": {}
+          },
+          "create_time": 1748085041.769279,
+          "update_time": null,
+          "content": {
+            "content_type": "multimodal_text",
+            "parts": [
+              {
+                "content_type": "image_asset_pointer",
+                "asset_pointer": "",
+                "size_bytes": 425613,
+                "width": 333,
+                "height": 444,
+                "fovea": null,
+                "metadata": {
+                  "dalle": null,
+                  "gizmo": null,
+                  "generation": null,
+                  "container_pixel_height": null,
+                  "container_pixel_width": null,
+                  "emu_omit_glimpse_image": null,
+                  "emu_patches_override": null,
+                  "sanitized": true,
+                  "asset_pointer_link": null,
+                  "watermarked_asset_pointer": null
+                }
+              },
+              ""
+            ]
+          },
+          "status": "finished_successfully",
+          "end_turn": null,
+          "weight": 1.0,
+          "metadata": {
+            "attachments": [
+              {
+                "name": "",
+                "width": 333,
+                "height": 444,
+                "size": 425613,
+                "id": "file-35eytNMMTW2k7vKUHBuNzW"
+              }
+            ],
+            "request_id": "944c59177932fc9a-KIX",
+            "message_source": null,
+            "timestamp_": "absolute",
+            "message_type": null
+          },
+          "recipient": "all",
+          "channel": null
+        },
+        "parent": "7960fbff-bc4f-45e7-95e9-9d0bc79d9090",
+        "children": [
+          "98d84adc-156e-4c81-8cd8-9b0eb01c8369"
+        ]
+      },
+      "98d84adc-156e-4c81-8cd8-9b0eb01c8369": {
+        "id": "98d84adc-156e-4c81-8cd8-9b0eb01c8369",
+        "message": {
+          "id": "98d84adc-156e-4c81-8cd8-9b0eb01c8369",
+          "author": {
+            "role": "assistant",
+            "name": null,
+            "metadata": {}
+          },
+          "create_time": 1748085043.312312,
+          "update_time": null,
+          "content": {
+            "content_type": "text",
+            "parts": [
+              ""
+            ]
+          },
+          "status": "finished_successfully",
+          "end_turn": true,
+          "weight": 1.0,
+          "metadata": {
+            "finish_details": {
+              "type": "stop",
+              "stop_tokens": [
+                200002
+              ]
+            },
+            "is_complete": true,
+            "citations": [],
+            "content_references": [],
+            "message_type": null,
+            "model_slug": "gpt-4o",
+            "default_model_slug": "auto",
+            "parent_id": "2de0f3c9-52b1-49bf-b980-b3ef9be6551e",
+            "request_id": "944c5912c8fdd1c6-KIX",
+            "timestamp_": "absolute"
+          },
+          "recipient": "all",
+          "channel": null
+        },
+        "parent": "2de0f3c9-52b1-49bf-b980-b3ef9be6551e",
+        "children": [
+          "caa61793-9dbf-44a5-945b-5ca4cd5130d0"
+        ]
+      }
+    },
+    "moderation_results": [],
+    "current_node": "06488d3f-a95f-4906-96d1-f7e9ba1e8662",
+    "plugin_ids": null,
+    "conversation_id": "6827f428-78e8-800d-b3bf-eb7ff4288e47",
+    "conversation_template_id": null,
+    "gizmo_id": null,
+    "gizmo_type": null,
+    "is_archived": false,
+    "is_starred": null,
+    "safe_urls": [
+      "https://exifinfo.org/"
+    ],
+    "blocked_urls": [],
+    "default_model_slug": "auto",
+    "conversation_origin": null,
+    "voice": null,
+    "async_status": null,
+    "disabled_tool_ids": [],
+    "is_do_not_remember": false,
+    "memory_scope": "global_enabled",
+    "id": "6827f428-78e8-800d-b3bf-eb7ff4288e47"
+  }
+]

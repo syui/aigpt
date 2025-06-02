@@ -24,7 +24,25 @@
       "Bash(curl:*)",
       "Bash(~/.config/syui/ai/card/venv/bin/pip install greenlet)",
       "Bash(~/.config/syui/ai/card/venv/bin/python init_db.py)",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "Bash(aigpt --help)",
+      "Bash(aigpt status)",
+      "Bash(aigpt fortune)",
+      "Bash(aigpt relationships)",
+      "Bash(aigpt transmit)",
+      "Bash(aigpt config:*)",
+      "Bash(kill:*)",
+      "Bash(timeout:*)",
+      "Bash(rm:*)",
+      "Bash(rg:*)",
+      "Bash(aigpt server --help)",
+      "Bash(cat:*)",
+      "Bash(aigpt import-chatgpt:*)",
+      "Bash(aigpt chat:*)",
+      "Bash(echo:*)",
+      "Bash(aigpt shell:*)",
+      "Bash(aigpt maintenance)",
+      "Bash(aigpt status syui)"
     ],
     "deny": []
   }

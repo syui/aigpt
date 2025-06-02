@@ -8,11 +8,12 @@ import logging
 import subprocess
 import os
 import shlex
+import httpx
+import json
 from .ai_provider import create_ai_provider
 
 from .persona import Persona
 from .models import Memory, Relationship, PersonaState
-from .card_integration import CardIntegration, register_card_tools
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 class AIGptMcpServer:
     """MCP Server that exposes ai.gpt functionality to AI assistants"""
     
-    def __init__(self, data_dir: Path, enable_card_integration: bool = False):
+    def __init__(self, data_dir: Path):
         self.data_dir = data_dir
         self.persona = Persona(data_dir)
         
@@ -32,10 +33,6 @@ class AIGptMcpServer:
         
         # Create MCP server with FastAPI app
         self.server = FastApiMCP(self.app)
-        self.card_integration = None
-        
-        if enable_card_integration:
-            self.card_integration = CardIntegration()
         
         self._register_tools()
     
@@ -57,6 +54,108 @@ class AIGptMcpServer:
                 }
                 for mem in memories
             ]
+        
+        @self.app.get("/get_contextual_memories", operation_id="get_contextual_memories")
+        async def get_contextual_memories(query: str = "", limit: int = 10) -> Dict[str, List[Dict[str, Any]]]:
+            """Get memories organized by priority with contextual relevance"""
+            memory_groups = self.persona.memory.get_contextual_memories(query=query, limit=limit)
+            
+            result = {}
+            for group_name, memories in memory_groups.items():
+                result[group_name] = [
+                    {
+                        "id": mem.id,
+                        "content": mem.content,
+                        "level": mem.level.value,
+                        "importance": mem.importance_score,
+                        "is_core": mem.is_core,
+                        "timestamp": mem.timestamp.isoformat(),
+                        "summary": mem.summary,
+                        "metadata": mem.metadata
+                    }
+                    for mem in memories
+                ]
+            return result
+        
+        @self.app.post("/search_memories", operation_id="search_memories")
+        async def search_memories(keywords: List[str], memory_types: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+            """Search memories by keywords and optionally filter by memory types"""
+            from .models import MemoryLevel
+            
+            # Convert string memory types to enum if provided
+            level_filter = None
+            if memory_types:
+                level_filter = []
+                for mt in memory_types:
+                    try:
+                        level_filter.append(MemoryLevel(mt))
+                    except ValueError:
+                        pass  # Skip invalid memory types
+            
+            memories = self.persona.memory.search_memories(keywords, memory_types=level_filter)
+            return [
+                {
+                    "id": mem.id,
+                    "content": mem.content,
+                    "level": mem.level.value,
+                    "importance": mem.importance_score,
+                    "is_core": mem.is_core,
+                    "timestamp": mem.timestamp.isoformat(),
+                    "summary": mem.summary,
+                    "metadata": mem.metadata
+                }
+                for mem in memories
+            ]
+        
+        @self.app.post("/create_summary", operation_id="create_summary")
+        async def create_summary(user_id: str) -> Dict[str, Any]:
+            """Create an AI-powered summary of recent memories"""
+            try:
+                ai_provider = create_ai_provider()
+                summary = self.persona.memory.create_smart_summary(user_id, ai_provider=ai_provider)
+                
+                if summary:
+                    return {
+                        "success": True,
+                        "summary": {
+                            "id": summary.id,
+                            "content": summary.content,
+                            "level": summary.level.value,
+                            "importance": summary.importance_score,
+                            "timestamp": summary.timestamp.isoformat(),
+                            "metadata": summary.metadata
+                        }
+                    }
+                else:
+                    return {"success": False, "reason": "Not enough memories to summarize"}
+            except Exception as e:
+                logger.error(f"Failed to create summary: {e}")
+                return {"success": False, "reason": str(e)}
+        
+        @self.app.post("/create_core_memory", operation_id="create_core_memory")
+        async def create_core_memory() -> Dict[str, Any]:
+            """Create a core memory by analyzing all existing memories"""
+            try:
+                ai_provider = create_ai_provider()
+                core_memory = self.persona.memory.create_core_memory(ai_provider=ai_provider)
+                
+                if core_memory:
+                    return {
+                        "success": True,
+                        "core_memory": {
+                            "id": core_memory.id,
+                            "content": core_memory.content,
+                            "level": core_memory.level.value,
+                            "importance": core_memory.importance_score,
+                            "timestamp": core_memory.timestamp.isoformat(),
+                            "metadata": core_memory.metadata
+                        }
+                    }
+                else:
+                    return {"success": False, "reason": "Not enough memories to create core memory"}
+            except Exception as e:
+                logger.error(f"Failed to create core memory: {e}")
+                return {"success": False, "reason": str(e)}
         
         @self.app.get("/get_relationship", operation_id="get_relationship")
         async def get_relationship(user_id: str) -> Dict[str, Any]:
@@ -100,6 +199,21 @@ class AIGptMcpServer:
                 "personality": state.base_personality,
                 "active_memory_count": len(state.active_memories)
             }
+        
+        @self.app.post("/get_context_prompt", operation_id="get_context_prompt")
+        async def get_context_prompt(user_id: str, message: str) -> Dict[str, Any]:
+            """Get context-aware prompt for AI response generation"""
+            try:
+                context_prompt = self.persona.build_context_prompt(user_id, message)
+                return {
+                    "success": True,
+                    "context_prompt": context_prompt,
+                    "user_id": user_id,
+                    "message": message
+                }
+            except Exception as e:
+                logger.error(f"Failed to build context prompt: {e}")
+                return {"success": False, "reason": str(e)}
         
         @self.app.post("/process_interaction", operation_id="process_interaction")
         async def process_interaction(user_id: str, message: str) -> Dict[str, Any]:
@@ -301,9 +415,89 @@ class AIGptMcpServer:
             except Exception as e:
                 return {"error": str(e)}
         
-        # Register ai.card tools if integration is enabled
-        if self.card_integration:
-            register_card_tools(self.app, self.card_integration)
+        # ai.bot integration tools
+        @self.app.post("/remote_shell", operation_id="remote_shell")
+        async def remote_shell(command: str, ai_bot_url: str = "http://localhost:8080") -> Dict[str, Any]:
+            """Execute command via ai.bot /sh functionality (systemd-nspawn isolated execution)"""
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    # ai.bot の /sh エンドポイントに送信
+                    response = await client.post(
+                        f"{ai_bot_url}/sh",
+                        json={"command": command},
+                        headers={"Content-Type": "application/json"}
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        return {
+                            "status": "success",
+                            "command": command,
+                            "output": result.get("output", ""),
+                            "error": result.get("error", ""),
+                            "exit_code": result.get("exit_code", 0),
+                            "execution_time": result.get("execution_time", ""),
+                            "container_id": result.get("container_id", ""),
+                            "isolated": True  # systemd-nspawn isolation
+                        }
+                    else:
+                        return {
+                            "status": "error",
+                            "error": f"ai.bot responded with status {response.status_code}",
+                            "response_text": response.text
+                        }
+            except httpx.TimeoutException:
+                return {"status": "error", "error": "Request to ai.bot timed out"}
+            except Exception as e:
+                return {"status": "error", "error": f"Failed to connect to ai.bot: {str(e)}"}
+        
+        @self.app.get("/ai_bot_status", operation_id="ai_bot_status")
+        async def ai_bot_status(ai_bot_url: str = "http://localhost:8080") -> Dict[str, Any]:
+            """Check ai.bot server status and available commands"""
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get(f"{ai_bot_url}/status")
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        return {
+                            "status": "online",
+                            "ai_bot_url": ai_bot_url,
+                            "server_info": result,
+                            "shell_available": True
+                        }
+                    else:
+                        return {
+                            "status": "error",
+                            "error": f"ai.bot status check failed: {response.status_code}"
+                        }
+            except Exception as e:
+                return {
+                    "status": "offline",
+                    "error": f"Cannot connect to ai.bot: {str(e)}",
+                    "ai_bot_url": ai_bot_url
+                }
+        
+        @self.app.post("/isolated_python", operation_id="isolated_python")
+        async def isolated_python(code: str, ai_bot_url: str = "http://localhost:8080") -> Dict[str, Any]:
+            """Execute Python code in isolated ai.bot environment"""
+            # Python コードを /sh 経由で実行
+            python_command = f'python3 -c "{code.replace('"', '\\"')}"'
+            return await remote_shell(python_command, ai_bot_url)
+        
+        @self.app.post("/isolated_analysis", operation_id="isolated_analysis")
+        async def isolated_analysis(file_path: str, analysis_type: str = "structure", ai_bot_url: str = "http://localhost:8080") -> Dict[str, Any]:
+            """Perform code analysis in isolated environment"""
+            if analysis_type == "structure":
+                command = f"find {file_path} -type f -name '*.py' | head -20"
+            elif analysis_type == "lines":
+                command = f"wc -l {file_path}"
+            elif analysis_type == "syntax":
+                command = f"python3 -m py_compile {file_path}"
+            else:
+                command = f"file {file_path}"
+            
+            return await remote_shell(command, ai_bot_url)
         
         # Mount MCP server
         self.server.mount()
@@ -314,5 +508,4 @@ class AIGptMcpServer:
     
     async def close(self):
         """Cleanup resources"""
-        if self.card_integration:
-            await self.card_integration.close()
+        pass

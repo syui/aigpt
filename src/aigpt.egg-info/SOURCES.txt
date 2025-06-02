@@ -2,7 +2,7 @@ README.md
 pyproject.toml
 src/aigpt/__init__.py
 src/aigpt/ai_provider.py
-src/aigpt/card_integration.py
+src/aigpt/chatgpt_importer.py
 src/aigpt/cli.py
 src/aigpt/config.py
 src/aigpt/fortune.py

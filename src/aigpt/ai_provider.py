@@ -30,11 +30,16 @@ class AIProvider(Protocol):
 class OllamaProvider:
     """Ollama AI provider"""
     
-    def __init__(self, model: str = "qwen2.5", host: str = "http://localhost:11434"):
+    def __init__(self, model: str = "qwen2.5", host: Optional[str] = None):
         self.model = model
-        self.host = host
-        self.client = ollama.Client(host=host)
+        # Use environment variable OLLAMA_HOST if available, otherwise use config or default
+        self.host = host or os.getenv('OLLAMA_HOST', 'http://127.0.0.1:11434')
+        # Ensure proper URL format
+        if not self.host.startswith('http'):
+            self.host = f'http://{self.host}'
+        self.client = ollama.Client(host=self.host, timeout=60.0)  # 60秒タイムアウト
         self.logger = logging.getLogger(__name__)
+        self.logger.info(f"OllamaProvider initialized with host: {self.host}, model: {self.model}")
     
     async def generate_response(
         self,
@@ -80,6 +85,26 @@ Recent memories:
         except Exception as e:
             self.logger.error(f"Ollama generation failed: {e}")
             return self._fallback_response(persona_state)
+    
+    def chat(self, prompt: str, max_tokens: int = 200) -> str:
+        """Simple chat interface"""
+        try:
+            response = self.client.chat(
+                model=self.model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                options={
+                    "num_predict": max_tokens,
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                },
+                stream=False  # ストリーミング無効化で安定性向上
+            )
+            return response['message']['content']
+        except Exception as e:
+            self.logger.error(f"Ollama chat failed (host: {self.host}): {e}")
+            return "I'm having trouble connecting to the AI model."
     
     def _fallback_response(self, persona_state: PersonaState) -> str:
         """Fallback response based on mood"""
@@ -162,9 +187,19 @@ Recent memories:
         return mood_responses.get(persona_state.current_mood, "I see.")
 
 
-def create_ai_provider(provider: str, model: str, **kwargs) -> AIProvider:
+def create_ai_provider(provider: str = "ollama", model: str = "qwen2.5", **kwargs) -> AIProvider:
     """Factory function to create AI providers"""
     if provider == "ollama":
+        # Try to get host from config if not provided in kwargs
+        if 'host' not in kwargs:
+            try:
+                from .config import Config
+                config = Config()
+                config_host = config.get('providers.ollama.host')
+                if config_host:
+                    kwargs['host'] = config_host
+            except:
+                pass  # Use environment variable or default
         return OllamaProvider(model=model, **kwargs)
     elif provider == "openai":
         return OpenAIProvider(model=model, **kwargs)
