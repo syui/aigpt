@@ -41,6 +41,13 @@ class OllamaProvider:
         self.client = ollama.Client(host=self.host, timeout=60.0)  # 60秒タイムアウト
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"OllamaProvider initialized with host: {self.host}, model: {self.model}")
+        
+        # Load system prompt from config
+        try:
+            config = Config()
+            self.config_system_prompt = config.get('providers.ollama.system_prompt')
+        except:
+            self.config_system_prompt = None
     
     async def generate_response(
         self,
@@ -72,7 +79,7 @@ Personality traits: {personality_desc}
 Recent memories:
 {memory_context}
 
-{system_prompt or 'Respond naturally based on your current state and memories.'}"""
+{system_prompt or self.config_system_prompt or 'Respond naturally based on your current state and memories.'}"""
         
         try:
             response = self.client.chat(
@@ -90,11 +97,14 @@ Recent memories:
     def chat(self, prompt: str, max_tokens: int = 2000) -> str:
         """Simple chat interface"""
         try:
+            messages = []
+            if self.config_system_prompt:
+                messages.append({"role": "system", "content": self.config_system_prompt})
+            messages.append({"role": "user", "content": prompt})
+            
             response = self.client.chat(
                 model=self.model,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
+                messages=messages,
                 options={
                     "num_predict": max_tokens,
                     "temperature": 0.7,
@@ -141,6 +151,12 @@ class OpenAIProvider:
         self.client = OpenAI(api_key=self.api_key)
         self.logger = logging.getLogger(__name__)
         self.mcp_client = mcp_client  # For MCP function calling
+        
+        # Load system prompt from config
+        try:
+            self.config_system_prompt = config.get('providers.openai.system_prompt')
+        except:
+            self.config_system_prompt = None
     
     def _get_mcp_tools(self) -> List[Dict[str, Any]]:
         """Generate OpenAI tools from MCP endpoints"""
@@ -253,7 +269,7 @@ Personality traits: {personality_desc}
 Recent memories:
 {memory_context}
 
-{system_prompt or 'Respond naturally based on your current state and memories. Be authentic to your mood and personality.'}"""
+{system_prompt or self.config_system_prompt or 'Respond naturally based on your current state and memories. Be authentic to your mood and personality.'}"""
         
         try:
             response = self.client.chat.completions.create(
@@ -282,7 +298,7 @@ Recent memories:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "あなたは記憶システムと関係性データにアクセスできます。過去の会話、記憶、関係性について質問された時は、必ずツールを使用して正確な情報を取得してください。「覚えている」「前回」「以前」「について話した」「関係」などのキーワードがあれば積極的にツールを使用してください。"},
+                    {"role": "system", "content": self.config_system_prompt or "あなたは記憶システムと関係性データにアクセスできます。過去の会話、記憶、関係性について質問された時は、必ずツールを使用して正確な情報を取得してください。「覚えている」「前回」「以前」「について話した」「関係」などのキーワードがあれば積極的にツールを使用してください。"},
                     {"role": "user", "content": prompt}
                 ],
                 tools=tools,
@@ -300,7 +316,7 @@ Recent memories:
                     print(f"  - {tc.function.name}({tc.function.arguments})")
                 
                 messages = [
-                    {"role": "system", "content": "必要に応じて利用可能なツールを使って、より正確で詳細な回答を提供してください。"},
+                    {"role": "system", "content": self.config_system_prompt or "必要に応じて利用可能なツールを使って、より正確で詳細な回答を提供してください。"},
                     {"role": "user", "content": prompt},
                     {
                         "role": "assistant", 
@@ -377,11 +393,14 @@ Recent memories:
     def chat(self, prompt: str, max_tokens: int = 2000) -> str:
         """Simple chat interface without MCP tools"""
         try:
+            messages = []
+            if self.config_system_prompt:
+                messages.append({"role": "system", "content": self.config_system_prompt})
+            messages.append({"role": "user", "content": prompt})
+            
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
+                messages=messages,
                 max_tokens=max_tokens,
                 temperature=0.7
             )

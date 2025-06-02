@@ -43,7 +43,8 @@
       "Bash(aigpt shell:*)",
       "Bash(aigpt maintenance)",
       "Bash(aigpt status syui)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(./setup_venv.sh:*)"
     ],
     "deny": []
   }

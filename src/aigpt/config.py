@@ -41,11 +41,13 @@ class Config:
                 "providers": {
                     "openai": {
                         "api_key": None,
-                        "default_model": "gpt-4o-mini"
+                        "default_model": "gpt-4o-mini",
+                        "system_prompt": None
                     },
                     "ollama": {
                         "host": "http://localhost:11434",
-                        "default_model": "qwen3:latest"
+                        "default_model": "qwen3:latest",
+                        "system_prompt": None
                     }
                 },
                 "mcp": {
