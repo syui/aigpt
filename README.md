@@ -89,10 +89,42 @@ aigpt config set atproto.password your-password
 aigpt config list
 ```
 
+### AIモデルの設定
+```bash
+# Ollamaのデフォルトモデルを変更
+aigpt config set providers.ollama.default_model llama3
+
+# OpenAIのデフォルトモデルを変更  
+aigpt config set providers.openai.default_model gpt-4
+
+# Ollamaホストの設定
+aigpt config set providers.ollama.host http://localhost:11434
+
+# 設定の確認
+aigpt config get providers.ollama.default_model
+```
+
 ### データ保存場所
 - 設定: `~/.config/syui/ai/gpt/config.json`
 - データ: `~/.config/syui/ai/gpt/data/`
 - 仮想環境: `~/.config/syui/ai/gpt/venv/`
+
+### 設定ファイル構造
+```json
+{
+  "providers": {
+    "ollama": {
+      "host": "http://localhost:11434",
+      "default_model": "qwen3"
+    },
+    "openai": {
+      "api_key": null,
+      "default_model": "gpt-4o-mini"
+    }
+  },
+  "default_provider": "ollama"
+}
+```
 
 ## 使い方
 

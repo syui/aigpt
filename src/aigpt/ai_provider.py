@@ -187,9 +187,18 @@ Recent memories:
         return mood_responses.get(persona_state.current_mood, "I see.")
 
 
-def create_ai_provider(provider: str = "ollama", model: str = "qwen2.5", **kwargs) -> AIProvider:
+def create_ai_provider(provider: str = "ollama", model: Optional[str] = None, **kwargs) -> AIProvider:
     """Factory function to create AI providers"""
     if provider == "ollama":
+        # Get model from config if not provided
+        if model is None:
+            try:
+                from .config import Config
+                config = Config()
+                model = config.get('providers.ollama.default_model', 'qwen2.5')
+            except:
+                model = 'qwen2.5'  # Fallback to default
+        
         # Try to get host from config if not provided in kwargs
         if 'host' not in kwargs:
             try:
@@ -202,6 +211,14 @@ def create_ai_provider(provider: str = "ollama", model: str = "qwen2.5", **kwarg
                 pass  # Use environment variable or default
         return OllamaProvider(model=model, **kwargs)
     elif provider == "openai":
+        # Get model from config if not provided
+        if model is None:
+            try:
+                from .config import Config
+                config = Config()
+                model = config.get('providers.openai.default_model', 'gpt-4o-mini')
+            except:
+                model = 'gpt-4o-mini'  # Fallback to default
         return OpenAIProvider(model=model, **kwargs)
     else:
         raise ValueError(f"Unknown provider: {provider}")
