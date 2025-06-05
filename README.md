@@ -443,6 +443,35 @@ ai.cardは独立したMCPサーバーとして動作：
 
 ai.gptサーバーからHTTP経由で連携可能
 
+### ai.log統合 - ブログシステム連携
+
+ai.logは独立したRust製MCPサーバーとして動作：
+- **ポート**: 8002
+- **起動**: `cd log && cargo run --bin mcp-server --port 8002`
+- **機能**: ブログ投稿・AI翻訳・文書生成・atproto連携
+- **連携**: ai.gptからHTTP経由でai.logのMCPツールを呼び出し
+
+```bash
+# ai.logのMCPサーバー起動
+cd /Users/syui/ai/gpt/log
+cargo run --bin mcp-server --port 8002
+
+# または
+cd log && cargo run --bin mcp-server --port 8002
+```
+
+**利用可能なai.logツール（8個）**:
+- `log_create_post` - ブログ記事作成
+- `log_list_posts` - 記事一覧取得  
+- `log_build_blog` - ブログビルド
+- `log_get_post` - 記事内容取得
+- `log_system_status` - システム状態確認
+- `log_ai_content` - AI記憶から記事自動生成
+- `log_translate_document` - AI翻訳
+- `log_generate_docs` - 文書生成
+
+詳細は `./log/mcp_integration.md` を参照
+
 ## 環境変数
 
 `.env`ファイルを作成して設定：
