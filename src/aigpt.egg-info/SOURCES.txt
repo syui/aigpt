@@ -21,3 +21,5 @@ src/aigpt.egg-info/dependency_links.txt
 src/aigpt.egg-info/entry_points.txt
 src/aigpt.egg-info/requires.txt
 src/aigpt.egg-info/top_level.txt
+src/aigpt/shared/__init__.py
+src/aigpt/shared/ai_provider.py

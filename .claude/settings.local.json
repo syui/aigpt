@@ -44,7 +44,13 @@
       "Bash(aigpt maintenance)",
       "Bash(aigpt status syui)",
       "Bash(cp:*)",
-      "Bash(./setup_venv.sh:*)"
+      "Bash(./setup_venv.sh:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(launchctl:*)",
+      "Bash(sudo lsof:*)",
+      "Bash(sudo:*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo run:*)"
     ],
     "deny": []
   }

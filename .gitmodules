@@ -5,3 +5,6 @@
 	path = card
 	url = git@git.syui.ai:ai/card
 	branch = claude
+[submodule "log"]
+	path = log
+	url = git@git.syui.ai:ai/log

@@ -38,11 +38,19 @@ class AIGptMcpServer:
         self.card_dir = Path("./card")
         self.has_card = self.card_dir.exists() and self.card_dir.is_dir()
         
+        # Check if ai.log exists
+        self.log_dir = Path("./log")
+        self.has_log = self.log_dir.exists() and self.log_dir.is_dir()
+        
         self._register_tools()
         
         # Register ai.card tools if available
         if self.has_card:
             self._register_card_tools()
+        
+        # Register ai.log tools if available
+        if self.has_log:
+            self._register_log_tools()
     
     def _register_tools(self):
         """Register all MCP tools"""
@@ -651,6 +659,353 @@ class AIGptMcpServer:
         
         # Mount MCP server
         self.server.mount()
+    
+    def _register_log_tools(self):
+        """Register ai.log MCP tools when log directory exists"""
+        logger.info("Registering ai.log tools...")
+        
+        @self.app.post("/log_create_post", operation_id="log_create_post")
+        async def log_create_post(title: str, content: str, tags: Optional[List[str]] = None, slug: Optional[str] = None) -> Dict[str, Any]:
+            """Create a new blog post in ai.log system"""
+            logger.info(f"📝 [ai.log] Creating post: {title}")
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.post(
+                        "http://localhost:8002/mcp/tools/call",
+                        json={
+                            "jsonrpc": "2.0",
+                            "id": "log_create_post",
+                            "method": "call_tool",
+                            "params": {
+                                "name": "create_blog_post",
+                                "arguments": {
+                                    "title": title,
+                                    "content": content,
+                                    "tags": tags or [],
+                                    "slug": slug
+                                }
+                            }
+                        }
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        if result.get("error"):
+                            return {"error": result["error"]["message"]}
+                        return {
+                            "success": True,
+                            "message": "Blog post created successfully",
+                            "title": title,
+                            "tags": tags or []
+                        }
+                    else:
+                        return {"error": f"Failed to create post: {response.status_code}"}
+            except httpx.ConnectError:
+                return {
+                    "error": "ai.log server is not running",
+                    "hint": "Please start ai.log server: cd log && cargo run -- mcp --port 8002",
+                    "details": "Connection refused to http://localhost:8002"
+                }
+            except Exception as e:
+                return {"error": f"ai.log connection failed: {str(e)}"}
+        
+        @self.app.get("/log_list_posts", operation_id="log_list_posts")
+        async def log_list_posts(limit: int = 10, offset: int = 0) -> Dict[str, Any]:
+            """List blog posts from ai.log system"""
+            logger.info(f"📝 [ai.log] Listing posts: limit={limit}, offset={offset}")
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.post(
+                        "http://localhost:8002/mcp/tools/call",
+                        json={
+                            "jsonrpc": "2.0",
+                            "id": "log_list_posts",
+                            "method": "call_tool",
+                            "params": {
+                                "name": "list_blog_posts",
+                                "arguments": {
+                                    "limit": limit,
+                                    "offset": offset
+                                }
+                            }
+                        }
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        if result.get("error"):
+                            return {"error": result["error"]["message"]}
+                        return result.get("result", {})
+                    else:
+                        return {"error": f"Failed to list posts: {response.status_code}"}
+            except httpx.ConnectError:
+                return {
+                    "error": "ai.log server is not running",
+                    "hint": "Please start ai.log server: cd log && cargo run -- mcp --port 8002",
+                    "details": "Connection refused to http://localhost:8002"
+                }
+            except Exception as e:
+                return {"error": f"ai.log connection failed: {str(e)}"}
+        
+        @self.app.post("/log_build_blog", operation_id="log_build_blog")
+        async def log_build_blog(enable_ai: bool = True, translate: bool = False) -> Dict[str, Any]:
+            """Build the static blog with AI features"""
+            logger.info(f"📝 [ai.log] Building blog: AI={enable_ai}, translate={translate}")
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.post(
+                        "http://localhost:8002/mcp/tools/call",
+                        json={
+                            "jsonrpc": "2.0",
+                            "id": "log_build_blog",
+                            "method": "call_tool",
+                            "params": {
+                                "name": "build_blog",
+                                "arguments": {
+                                    "enable_ai": enable_ai,
+                                    "translate": translate
+                                }
+                            }
+                        }
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        if result.get("error"):
+                            return {"error": result["error"]["message"]}
+                        return {
+                            "success": True,
+                            "message": "Blog built successfully",
+                            "ai_enabled": enable_ai,
+                            "translation_enabled": translate
+                        }
+                    else:
+                        return {"error": f"Failed to build blog: {response.status_code}"}
+            except httpx.ConnectError:
+                return {
+                    "error": "ai.log server is not running",
+                    "hint": "Please start ai.log server: cd log && cargo run -- mcp --port 8002",
+                    "details": "Connection refused to http://localhost:8002"
+                }
+            except Exception as e:
+                return {"error": f"ai.log connection failed: {str(e)}"}
+        
+        @self.app.get("/log_get_post", operation_id="log_get_post")
+        async def log_get_post(slug: str) -> Dict[str, Any]:
+            """Get blog post content by slug"""
+            logger.info(f"📝 [ai.log] Getting post: {slug}")
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.post(
+                        "http://localhost:8002/mcp/tools/call",
+                        json={
+                            "jsonrpc": "2.0",
+                            "id": "log_get_post",
+                            "method": "call_tool",
+                            "params": {
+                                "name": "get_post_content",
+                                "arguments": {
+                                    "slug": slug
+                                }
+                            }
+                        }
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        if result.get("error"):
+                            return {"error": result["error"]["message"]}
+                        return result.get("result", {})
+                    else:
+                        return {"error": f"Failed to get post: {response.status_code}"}
+            except httpx.ConnectError:
+                return {
+                    "error": "ai.log server is not running",
+                    "hint": "Please start ai.log server: cd log && cargo run -- mcp --port 8002",
+                    "details": "Connection refused to http://localhost:8002"
+                }
+            except Exception as e:
+                return {"error": f"ai.log connection failed: {str(e)}"}
+        
+        @self.app.get("/log_system_status", operation_id="log_system_status")
+        async def log_system_status() -> Dict[str, Any]:
+            """Check ai.log system status"""
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    response = await client.get("http://localhost:8002/health")
+                    if response.status_code == 200:
+                        return {
+                            "status": "online",
+                            "health": response.json(),
+                            "log_dir": str(self.log_dir)
+                        }
+                    else:
+                        return {
+                            "status": "error",
+                            "error": f"Health check failed: {response.status_code}"
+                        }
+            except Exception as e:
+                return {
+                    "status": "offline",
+                    "error": f"ai.log is not running: {str(e)}",
+                    "hint": "Start ai.log with: cd log && cargo run -- mcp --port 8002"
+                }
+        
+        @self.app.post("/log_ai_content", operation_id="log_ai_content")
+        async def log_ai_content(user_id: str, topic: str = "daily thoughts") -> Dict[str, Any]:
+            """Generate AI content for blog from memories and create post"""
+            logger.info(f"📝 [ai.log] Generating AI content for: {topic}")
+            try:
+                # Get contextual memories for the topic
+                memories = await get_contextual_memories(topic, limit=5)
+                
+                # Get AI provider
+                ai_provider = create_ai_provider()
+                
+                # Build content from memories
+                memory_context = ""
+                for group_name, mem_list in memories.items():
+                    memory_context += f"\n## {group_name}\n"
+                    for mem in mem_list:
+                        memory_context += f"- {mem['content']}\n"
+                
+                # Generate blog content
+                prompt = f"""Based on the following memories and context, write a thoughtful blog post about {topic}.
+
+Memory Context:
+{memory_context}
+
+Please write a well-structured blog post in Markdown format with:
+1. An engaging title
+2. Clear structure with headings
+3. Personal insights based on the memories
+4. A conclusion that ties everything together
+
+Focus on creating content that reflects personal growth and learning from these experiences."""
+
+                content = ai_provider.generate_response(prompt, "You are a thoughtful blogger who creates insightful content.")
+                
+                # Extract title from content (first heading)
+                lines = content.split('\n')
+                title = topic.title()
+                for line in lines:
+                    if line.startswith('# '):
+                        title = line[2:].strip()
+                        content = '\n'.join(lines[1:]).strip()  # Remove title from content
+                        break
+                
+                # Create the blog post
+                return await log_create_post(
+                    title=title,
+                    content=content,
+                    tags=["AI", "thoughts", "daily"]
+                )
+                
+            except Exception as e:
+                return {"error": f"Failed to generate AI content: {str(e)}"}
+        
+        @self.app.post("/log_translate_document", operation_id="log_translate_document")
+        async def log_translate_document(
+            input_file: str,
+            target_lang: str,
+            source_lang: Optional[str] = None,
+            output_file: Optional[str] = None,
+            model: str = "qwen2.5:latest",
+            ollama_endpoint: str = "http://localhost:11434"
+        ) -> Dict[str, Any]:
+            """Translate markdown documents using Ollama via ai.log"""
+            logger.info(f"🌍 [ai.log] Translating document: {input_file} -> {target_lang}")
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:  # Longer timeout for translation
+                    response = await client.post(
+                        "http://localhost:8002/mcp/tools/call",
+                        json={
+                            "jsonrpc": "2.0",
+                            "id": "log_translate_document",
+                            "method": "call_tool",
+                            "params": {
+                                "name": "translate_document",
+                                "arguments": {
+                                    "input_file": input_file,
+                                    "target_lang": target_lang,
+                                    "source_lang": source_lang,
+                                    "output_file": output_file,
+                                    "model": model,
+                                    "ollama_endpoint": ollama_endpoint
+                                }
+                            }
+                        }
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        if result.get("error"):
+                            return {"error": result["error"]["message"]}
+                        return {
+                            "success": True,
+                            "message": "Document translated successfully",
+                            "input_file": input_file,
+                            "target_lang": target_lang,
+                            "output_file": result.get("result", {}).get("output_file")
+                        }
+                    else:
+                        return {"error": f"Failed to translate document: {response.status_code}"}
+            except httpx.ConnectError:
+                return {
+                    "error": "ai.log server is not running",
+                    "hint": "Please start ai.log server: cd log && cargo run -- mcp --port 8002",
+                    "details": "Connection refused to http://localhost:8002"
+                }
+            except Exception as e:
+                return {"error": f"ai.log translation failed: {str(e)}"}
+
+        @self.app.post("/log_generate_docs", operation_id="log_generate_docs")
+        async def log_generate_docs(
+            doc_type: str,  # "readme", "api", "structure", "changelog"
+            source_path: Optional[str] = None,
+            output_path: Optional[str] = None,
+            with_ai: bool = True,
+            include_deps: bool = False,
+            format_type: str = "markdown"
+        ) -> Dict[str, Any]:
+            """Generate documentation using ai.log's doc generation features"""
+            logger.info(f"📚 [ai.log] Generating {doc_type} documentation")
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.post(
+                        "http://localhost:8002/mcp/tools/call",
+                        json={
+                            "jsonrpc": "2.0",
+                            "id": "log_generate_docs",
+                            "method": "call_tool",
+                            "params": {
+                                "name": "generate_documentation",
+                                "arguments": {
+                                    "doc_type": doc_type,
+                                    "source_path": source_path or ".",
+                                    "output_path": output_path,
+                                    "with_ai": with_ai,
+                                    "include_deps": include_deps,
+                                    "format_type": format_type
+                                }
+                            }
+                        }
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        if result.get("error"):
+                            return {"error": result["error"]["message"]}
+                        return {
+                            "success": True,
+                            "message": f"{doc_type.title()} documentation generated successfully",
+                            "doc_type": doc_type,
+                            "output_path": result.get("result", {}).get("output_path")
+                        }
+                    else:
+                        return {"error": f"Failed to generate documentation: {response.status_code}"}
+            except httpx.ConnectError:
+                return {
+                    "error": "ai.log server is not running",
+                    "hint": "Please start ai.log server: cd log && cargo run -- mcp --port 8002",
+                    "details": "Connection refused to http://localhost:8002"
+                }
+            except Exception as e:
+                return {"error": f"ai.log documentation generation failed: {str(e)}"}
     
     def get_server(self) -> FastApiMCP:
         """Get the FastAPI MCP server instance"""
