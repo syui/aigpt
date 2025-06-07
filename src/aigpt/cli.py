@@ -23,6 +23,9 @@ from .ai_provider import create_ai_provider
 from .scheduler import AIScheduler, TaskType
 from .config import Config
 from .project_manager import ContinuousDeveloper
+from .commands.docs import docs_app
+from .commands.submodules import submodules_app
+from .commands.tokens import tokens_app
 
 app = typer.Typer(help="ai.gpt - Autonomous transmission AI with unique personality")
 console = Console()
@@ -1577,6 +1580,16 @@ def conv(
 ):
     """Alias for conversation command"""
     conversation(user_id, data_dir, model, provider)
+
+
+# Add documentation subcommand
+app.add_typer(docs_app, name="docs", help="Documentation management")
+
+# Add submodules subcommand  
+app.add_typer(submodules_app, name="submodules", help="Submodule management")
+
+# Add tokens subcommand
+app.add_typer(tokens_app, name="tokens", help="Claude Code token usage and cost analysis")
 
 
 if __name__ == "__main__":

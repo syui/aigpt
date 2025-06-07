@@ -17,6 +17,10 @@ dependencies = [
     "apscheduler>=3.10.0",
     "croniter>=1.3.0",
     "prompt-toolkit>=3.0.0",
+    # Documentation management
+    "jinja2>=3.0.0",
+    "gitpython>=3.1.0",
+    "pathlib-extensions>=0.1.0",
 ]
 
 [project.scripts]

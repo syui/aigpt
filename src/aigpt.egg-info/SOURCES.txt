@@ -21,5 +21,14 @@ src/aigpt.egg-info/dependency_links.txt
 src/aigpt.egg-info/entry_points.txt
 src/aigpt.egg-info/requires.txt
 src/aigpt.egg-info/top_level.txt
+src/aigpt/commands/docs.py
+src/aigpt/commands/submodules.py
+src/aigpt/commands/tokens.py
+src/aigpt/docs/__init__.py
+src/aigpt/docs/config.py
+src/aigpt/docs/git_utils.py
+src/aigpt/docs/templates.py
+src/aigpt/docs/utils.py
+src/aigpt/docs/wiki_generator.py
 src/aigpt/shared/__init__.py
 src/aigpt/shared/ai_provider.py
