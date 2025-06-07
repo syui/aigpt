@@ -4,13 +4,10 @@ use serde_json::{json, Value};
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use colored::*;
-use std::collections::HashMap;
-use std::process::Command;
 
 use axum::{
     extract::{Path as AxumPath, State},
-    http::{StatusCode, Method},
+    http::Method,
     response::Json,
     routing::{get, post},
     Router,
@@ -78,6 +75,7 @@ pub struct MCPHttpResponse {
     pub error: Option<String>,
 }
 
+#[allow(dead_code)]
 pub struct MCPServer {
     config: Config,
     persona: Persona,
@@ -387,7 +385,8 @@ impl MCPServer {
         let result = match request.method.as_str() {
             "tools/list" => self.handle_list_tools().await,
             "tools/call" => self.handle_tool_call(request.params).await,
-            _ => Err(anyhow::anyhow!("Unknown method: {}", request.method)),
+            // HTTP endpoint直接呼び出し対応
+            method => self.handle_direct_tool_call(method, request.params).await,
         };
         
         match result {
@@ -438,6 +437,30 @@ impl MCPServer {
             "run_scheduler" => self.tool_run_scheduler(arguments).await,
             "get_scheduler_status" => self.tool_get_scheduler_status(arguments).await,
             "get_transmission_history" => self.tool_get_transmission_history(arguments).await,
+            _ => Err(anyhow::anyhow!("Unknown tool: {}", tool_name)),
+        }
+    }
+
+    async fn handle_direct_tool_call(&mut self, tool_name: &str, params: Value) -> Result<Value> {
+        // HTTP endpointからの直接呼び出し用（パラメータ構造が異なる）
+        match tool_name {
+            "get_status" => self.tool_get_status(params).await,
+            "chat_with_ai" => self.tool_chat_with_ai(params).await,
+            "get_relationships" => self.tool_get_relationships(params).await,
+            "get_memories" => self.tool_get_memories(params).await,
+            "get_contextual_memories" => self.tool_get_contextual_memories(params).await,
+            "search_memories" => self.tool_search_memories(params).await,
+            "create_summary" => self.tool_create_summary(params).await,
+            "create_core_memory" => self.tool_create_core_memory(params).await,
+            "execute_command" => self.tool_execute_command(params).await,
+            "analyze_file" => self.tool_analyze_file(params).await,
+            "write_file" => self.tool_write_file(params).await,
+            "list_files" => self.tool_list_files(params).await,
+            "check_transmissions" => self.tool_check_transmissions(params).await,
+            "run_maintenance" => self.tool_run_maintenance(params).await,
+            "run_scheduler" => self.tool_run_scheduler(params).await,
+            "get_scheduler_status" => self.tool_get_scheduler_status(params).await,
+            "get_transmission_history" => self.tool_get_transmission_history(params).await,
             _ => Err(anyhow::anyhow!("Unknown tool: {}", tool_name)),
         }
     }

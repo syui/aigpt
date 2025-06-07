@@ -85,7 +85,6 @@ impl RelationshipTracker {
     
     pub fn process_interaction(&mut self, user_id: &str, sentiment: f64) -> Result<f64> {
         let now = Utc::now();
-        let previous_score;
         let score_change;
         
         // Create relationship if it doesn't exist
@@ -103,7 +102,7 @@ impl RelationshipTracker {
                 return Ok(0.0); // No score change due to daily limit
             }
             
-            previous_score = relationship.score;
+            // Store previous score for potential future logging
             
             // Calculate score change based on sentiment
             let mut base_score_change = sentiment * 0.5; // Base change

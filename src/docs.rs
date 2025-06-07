@@ -180,6 +180,18 @@ impl DocsManager {
             }
         }
         
+        // Generate ai.wiki content after all project syncs
+        println!("\n{}", "📝 Updating ai.wiki...".blue());
+        if let Err(e) = self.update_ai_wiki().await {
+            println!("{}: Failed to update ai.wiki: {}", "Warning".yellow(), e);
+        }
+        
+        // Update repository wiki (Gitea wiki) as well
+        println!("\n{}", "📝 Updating repository wiki...".blue());
+        if let Err(e) = self.update_repository_wiki().await {
+            println!("{}: Failed to update repository wiki: {}", "Warning".yellow(), e);
+        }
+        
         println!("\n{}", "✅ All projects synced".green().bold());
         
         Ok(())
@@ -543,6 +555,152 @@ impl DocsManager {
         Ok(status)
     }
     
+    /// ai.wikiの更新処理
+    async fn update_ai_wiki(&self) -> Result<()> {
+        let ai_wiki_path = self.ai_root.join("ai.wiki");
+        
+        // ai.wikiディレクトリが存在することを確認
+        if !ai_wiki_path.exists() {
+            return Err(anyhow::anyhow!("ai.wiki directory not found at {:?}", ai_wiki_path));
+        }
+        
+        // Home.mdの生成
+        let home_content = self.generate_wiki_home_content().await?;
+        let home_path = ai_wiki_path.join("Home.md");
+        std::fs::write(&home_path, &home_content)?;
+        println!("  ✓ Updated: {}", "Home.md".green());
+        
+        // title.mdの生成 (Gitea wiki特別ページ用)
+        let title_path = ai_wiki_path.join("title.md");
+        std::fs::write(&title_path, &home_content)?;
+        println!("  ✓ Updated: {}", "title.md".green());
+        
+        // auto/ディレクトリの更新
+        let auto_dir = ai_wiki_path.join("auto");
+        std::fs::create_dir_all(&auto_dir)?;
+        
+        let projects = self.discover_projects()?;
+        for project in projects {
+            let auto_content = self.generate_auto_project_content(&project).await?;
+            let auto_file = auto_dir.join(format!("{}.md", project));
+            std::fs::write(&auto_file, auto_content)?;
+            println!("  ✓ Updated: {}", format!("auto/{}.md", project).green());
+        }
+        
+        println!("{}", "✅ ai.wiki updated successfully".green().bold());
+        Ok(())
+    }
+    
+    /// ai.wiki/Home.mdのコンテンツ生成
+    async fn generate_wiki_home_content(&self) -> Result<String> {
+        let timestamp = Utc::now().format("%Y-%m-%d %H:%M:%S");
+        let mut content = String::new();
+        
+        content.push_str("# AI Ecosystem Wiki\n\n");
+        content.push_str("AI生態系プロジェクトの概要とドキュメント集約ページです。\n\n");
+        content.push_str("## プロジェクト一覧\n\n");
+        
+        let projects = self.discover_projects()?;
+        let mut project_sections = std::collections::HashMap::new();
+        
+        // プロジェクトをカテゴリ別に分類
+        for project in &projects {
+            let info = self.load_project_info(project).unwrap_or_default();
+            let category = match project.as_str() {
+                "ai" => "🧠 AI・知能システム",
+                "gpt" => "🤖 自律・対話システム", 
+                "os" => "💻 システム・基盤",
+                "game" => "📁 device",
+                "card" => "🎮 ゲーム・エンターテイメント",
+                "bot" | "moji" | "api" | "log" => "📁 その他",
+                "verse" => "📁 metaverse",
+                "shell" => "⚡ ツール・ユーティリティ",
+                _ => "📁 その他",
+            };
+            
+            project_sections.entry(category).or_insert_with(Vec::new).push((project.clone(), info));
+        }
+        
+        // カテゴリ別にプロジェクトを出力
+        let mut categories: Vec<_> = project_sections.keys().collect();
+        categories.sort();
+        
+        for category in categories {
+            content.push_str(&format!("### {}\n\n", category));
+            
+            if let Some(projects_in_category) = project_sections.get(category) {
+                for (project, info) in projects_in_category {
+                    content.push_str(&format!("#### [{}](auto/{}.md)\n", project, project));
+                    
+                    if !info.description.is_empty() {
+                        content.push_str(&format!("- **名前**: ai.{} - **パッケージ**: ai{} - **タイプ**: {} - **役割**: {}\n\n", 
+                                                project, project, info.project_type, info.description));
+                    }
+                    
+                    content.push_str(&format!("**Status**: {}  \n", info.status));
+                    content.push_str(&format!("**Links**: [Repo](https://git.syui.ai/ai/{}) | [Docs](https://git.syui.ai/ai/{}/src/branch/main/claude.md)\n\n", project, project));
+                }
+            }
+        }
+        
+        content.push_str("---\n\n");
+        content.push_str("## ディレクトリ構成\n\n");
+        content.push_str("- `auto/` - 自動生成されたプロジェクト概要\n");
+        content.push_str("- `claude/` - Claude Code作業記録\n");
+        content.push_str("- `manual/` - 手動作成ドキュメント\n\n");
+        content.push_str("---\n\n");
+        content.push_str("*このページは ai.json と claude/projects/ から自動生成されました*  \n");
+        content.push_str(&format!("*最終更新: {}*\n", timestamp));
+        
+        Ok(content)
+    }
+    
+    /// auto/プロジェクトファイルのコンテンツ生成
+    async fn generate_auto_project_content(&self, project: &str) -> Result<String> {
+        let info = self.load_project_info(project).unwrap_or_default();
+        let mut content = String::new();
+        
+        content.push_str(&format!("# {}\n\n", project));
+        content.push_str("## 概要\n");
+        content.push_str(&format!("- **名前**: ai.{} - **パッケージ**: ai{} - **タイプ**: {} - **役割**: {}\n\n", 
+                                project, project, info.project_type, info.description));
+        
+        content.push_str("## プロジェクト情報\n");
+        content.push_str(&format!("- **タイプ**: {}\n", info.project_type));
+        content.push_str(&format!("- **説明**: {}\n", info.description));
+        content.push_str(&format!("- **ステータス**: {}\n", info.status));
+        content.push_str("- **ブランチ**: main\n");
+        content.push_str("- **最終更新**: Unknown\n\n");
+        
+        // プロジェクト固有の機能情報を追加
+        if !info.features.is_empty() {
+            content.push_str("## 主な機能・特徴\n");
+            for feature in &info.features {
+                content.push_str(&format!("- {}\n", feature));
+            }
+            content.push_str("\n");
+        }
+        
+        content.push_str("## リンク\n");
+        content.push_str(&format!("- **Repository**: https://git.syui.ai/ai/{}\n", project));
+        content.push_str(&format!("- **Project Documentation**: [claude/projects/{}.md](https://git.syui.ai/ai/ai/src/branch/main/claude/projects/{}.md)\n", project, project));
+        content.push_str(&format!("- **Generated Documentation**: [{}/claude.md](https://git.syui.ai/ai/{}/src/branch/main/claude.md)\n\n", project, project));
+        
+        content.push_str("---\n");
+        content.push_str(&format!("*このページは claude/projects/{}.md から自動生成されました*\n", project));
+        
+        Ok(content)
+    }
+    
+    /// リポジトリwiki (Gitea wiki) の更新処理
+    async fn update_repository_wiki(&self) -> Result<()> {
+        println!("  ℹ️ Repository wiki is now unified with ai.wiki");
+        println!("  ℹ️ ai.wiki serves as the source of truth (git@git.syui.ai:ai/ai.wiki.git)");
+        println!("  ℹ️ Special pages generated: Home.md, title.md for Gitea wiki compatibility");
+        
+        Ok(())
+    }
+
     /// プロジェクトREADMEファイルの更新
     async fn update_project_readmes(&self) -> Result<()> {
         let projects = self.discover_projects()?;

@@ -79,9 +79,8 @@ impl MemoryManager {
         // Sort by score
         user_memory_ids.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         
-        // Update access information and collect references
+        // Update access information
         let now = Utc::now();
-        let mut result: Vec<&Memory> = Vec::new();
         
         for (memory_id, _) in user_memory_ids.into_iter().take(limit) {
             if let Some(memory) = self.memories.get_mut(&memory_id) {

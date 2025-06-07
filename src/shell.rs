@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use anyhow::{Result, Context};
 use colored::*;
 use rustyline::error::ReadlineError;
-use rustyline::{DefaultEditor, Editor};
+use rustyline::Editor;
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::history::{History, DefaultHistory};
 use rustyline::highlight::Highlighter;

@@ -1,9 +1,7 @@
 use anyhow::{anyhow, Result};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
-use url::Url;
 
 /// HTTP client for inter-service communication
 pub struct ServiceClient {
@@ -244,7 +242,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_client_creation() {
-        let client = ServiceClient::new();
+        let _client = ServiceClient::new();
         // Basic test to ensure client can be created
         assert!(true);
     }

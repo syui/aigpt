@@ -59,6 +59,7 @@ impl Default for SubmoduleInfo {
     }
 }
 
+#[allow(dead_code)]
 pub struct SubmoduleManager {
     config: Config,
     ai_root: PathBuf,

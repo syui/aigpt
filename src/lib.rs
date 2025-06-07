@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod ai_provider;
 pub mod cli;
 pub mod config;
