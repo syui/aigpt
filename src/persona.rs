@@ -309,4 +309,40 @@ impl Persona {
             HashMap::new()
         }
     }
+    
+    pub async fn process_message(&mut self, user_id: &str, message: &str) -> Result<ChatMessage> {
+        let (_response, _delta) = self.process_ai_interaction(user_id, message, None, None).await?;
+        Ok(ChatMessage::assistant(&_response))
+    }
+    
+    pub fn get_fortune(&self) -> Result<i32> {
+        self.load_today_fortune()
+    }
+    
+    pub fn generate_new_fortune(&self) -> Result<i32> {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let mut hasher = DefaultHasher::new();
+        today.hash(&mut hasher);
+        let hash = hasher.finish();
+        
+        let fortune = (hash % 10) as i32 + 1;
+        
+        // Save fortune
+        let mut fortune_data = if let Ok(content) = std::fs::read_to_string(self.config.fortune_file()) {
+            serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({}))
+        } else {
+            serde_json::json!({})
+        };
+        
+        fortune_data[today] = serde_json::json!(fortune);
+        
+        if let Ok(content) = serde_json::to_string_pretty(&fortune_data) {
+            let _ = std::fs::write(self.config.fortune_file(), content);
+        }
+        
+        Ok(fortune)
+    }
 }

@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
-use crate::TokenCommands;
+use crate::cli::TokenCommands;
 
 /// Token usage record from Claude Code JSONL files
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -273,13 +273,30 @@ impl TokenAnalyzer {
 pub async fn handle_tokens(command: TokenCommands) -> Result<()> {
     match command {
         TokenCommands::Summary { period, claude_dir, details, format } => {
-            handle_summary(period, claude_dir, details, format).await
+            handle_summary(
+                period.unwrap_or_else(|| "week".to_string()), 
+                claude_dir, 
+                details, 
+                format.unwrap_or_else(|| "table".to_string())
+            ).await
         }
         TokenCommands::Daily { days, claude_dir } => {
-            handle_daily(days, claude_dir).await
+            handle_daily(days.unwrap_or(7), claude_dir).await
         }
         TokenCommands::Status { claude_dir } => {
             handle_status(claude_dir).await
+        }
+        TokenCommands::Analyze { file } => {
+            println!("Token analysis for file: {:?} - Not implemented yet", file);
+            Ok(())
+        }
+        TokenCommands::Report { days } => {
+            println!("Token report for {} days - Not implemented yet", days.unwrap_or(7));
+            Ok(())
+        }
+        TokenCommands::Cost { month } => {
+            println!("Token cost for month: {} - Not implemented yet", month.unwrap_or_else(|| "current".to_string()));
+            Ok(())
         }
     }
 }

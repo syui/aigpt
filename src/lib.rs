@@ -1,0 +1,17 @@
+pub mod ai_provider;
+pub mod cli;
+pub mod config;
+pub mod conversation;
+pub mod docs;
+pub mod http_client;
+pub mod import;
+pub mod mcp_server;
+pub mod memory;
+pub mod persona;
+pub mod relationship;
+pub mod scheduler;
+pub mod shell;
+pub mod status;
+pub mod submodules;
+pub mod tokens;
+pub mod transmission;

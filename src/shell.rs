@@ -1,8 +1,16 @@
-use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::io::{self, Write};
 use anyhow::{Result, Context};
 use colored::*;
+use rustyline::error::ReadlineError;
+use rustyline::{DefaultEditor, Editor};
+use rustyline::completion::{Completer, FilenameCompleter, Pair};
+use rustyline::history::{History, DefaultHistory};
+use rustyline::highlight::Highlighter;
+use rustyline::hint::Hinter;
+use rustyline::validate::Validator;
+use rustyline::Helper;
 
 use crate::config::Config;
 use crate::persona::Persona;
@@ -26,69 +34,185 @@ pub struct ShellMode {
     config: Config,
     persona: Persona,
     ai_provider: Option<AIProviderClient>,
-    history: Vec<String>,
     user_id: String,
+    editor: Editor<ShellCompleter, DefaultHistory>,
+}
+
+struct ShellCompleter {
+    completer: FilenameCompleter,
+}
+
+impl ShellCompleter {
+    fn new() -> Self {
+        ShellCompleter {
+            completer: FilenameCompleter::new(),
+        }
+    }
+}
+
+impl Helper for ShellCompleter {}
+
+impl Hinter for ShellCompleter {
+    type Hint = String;
+    
+    fn hint(&self, _line: &str, _pos: usize, _ctx: &rustyline::Context<'_>) -> Option<String> {
+        None
+    }
+}
+
+impl Highlighter for ShellCompleter {}
+
+impl Validator for ShellCompleter {}
+
+impl Completer for ShellCompleter {
+    type Candidate = Pair;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        ctx: &rustyline::Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Pair>)> {
+        // Custom completion for slash commands
+        if line.starts_with('/') {
+            let commands = vec![
+                "/status", "/relationships", "/memories", "/analyze", 
+                "/fortune", "/clear", "/history", "/help", "/exit"
+            ];
+            
+            let word_start = line.rfind(' ').map_or(0, |i| i + 1);
+            let word = &line[word_start..pos];
+            
+            let matches: Vec<Pair> = commands.iter()
+                .filter(|cmd| cmd.starts_with(word))
+                .map(|cmd| Pair {
+                    display: cmd.to_string(),
+                    replacement: cmd.to_string(),
+                })
+                .collect();
+            
+            return Ok((word_start, matches));
+        }
+        
+        // Custom completion for shell commands starting with !
+        if line.starts_with('!') {
+            let shell_commands = vec![
+                "ls", "pwd", "cd", "cat", "grep", "find", "ps", "top", 
+                "echo", "mkdir", "rmdir", "cp", "mv", "rm", "touch",
+                "git", "cargo", "npm", "python", "node"
+            ];
+            
+            let word_start = line.rfind(' ').map_or(1, |i| i + 1); // Skip the '!'
+            let word = &line[word_start..pos];
+            
+            let matches: Vec<Pair> = shell_commands.iter()
+                .filter(|cmd| cmd.starts_with(word))
+                .map(|cmd| Pair {
+                    display: cmd.to_string(),
+                    replacement: cmd.to_string(),
+                })
+                .collect();
+            
+            return Ok((word_start, matches));
+        }
+        
+        // Fallback to filename completion
+        self.completer.complete(line, pos, ctx)
+    }
 }
 
 impl ShellMode {
     pub fn new(config: Config, user_id: String) -> Result<Self> {
         let persona = Persona::new(&config)?;
         
+        // Setup rustyline editor with completer
+        let completer = ShellCompleter::new();
+        let mut editor = Editor::with_config(
+            rustyline::Config::builder()
+                .tab_stop(4)
+                .build()
+        )?;
+        editor.set_helper(Some(completer));
+        
+        // Load history if exists
+        let history_file = config.data_dir.join("shell_history.txt");
+        if history_file.exists() {
+            let _ = editor.load_history(&history_file);
+        }
+        
         Ok(ShellMode {
             config,
             persona,
             ai_provider: None,
-            history: Vec::new(),
             user_id,
+            editor,
         })
     }
     
     pub fn with_ai_provider(mut self, provider: Option<String>, model: Option<String>) -> Self {
-        if let (Some(provider_name), Some(model_name)) = (provider, model) {
-            let ai_provider = match provider_name.as_str() {
-                "ollama" => AIProvider::Ollama,
-                "openai" => AIProvider::OpenAI,
-                "claude" => AIProvider::Claude,
-                _ => AIProvider::Ollama, // Default fallback
-            };
+        // Use provided parameters or fall back to config defaults
+        let provider_name = provider
+            .or_else(|| Some(self.config.default_provider.clone()))
+            .unwrap_or_else(|| "ollama".to_string());
             
-            let ai_config = AIConfig {
-                provider: ai_provider,
-                model: model_name,
-                api_key: None, // Will be loaded from environment if needed
-                base_url: None,
-                max_tokens: Some(2000),
-                temperature: Some(0.7),
-            };
-            
-            let client = AIProviderClient::new(ai_config);
-            self.ai_provider = Some(client);
-        }
+        let model_name = model.or_else(|| {
+            // Try to get default model from config for the chosen provider
+            self.config.providers.get(&provider_name)
+                .map(|p| p.default_model.clone())
+        }).unwrap_or_else(|| {
+            // Final fallback based on provider
+            match provider_name.as_str() {
+                "openai" => "gpt-4o-mini".to_string(),
+                "ollama" => "qwen2.5-coder:latest".to_string(),
+                _ => "qwen2.5-coder:latest".to_string(),
+            }
+        });
+
+        let ai_provider = match provider_name.as_str() {
+            "ollama" => AIProvider::Ollama,
+            "openai" => AIProvider::OpenAI,
+            "claude" => AIProvider::Claude,
+            _ => AIProvider::Ollama, // Default fallback
+        };
+        
+        let ai_config = AIConfig {
+            provider: ai_provider,
+            model: model_name,
+            api_key: None, // Will be loaded from environment if needed
+            base_url: None,
+            max_tokens: Some(2000),
+            temperature: Some(0.7),
+        };
+        
+        let client = AIProviderClient::new(ai_config);
+        self.ai_provider = Some(client);
+        
         self
     }
     
     pub async fn run(&mut self) -> Result<()> {
         println!("{}", "🚀 Starting ai.gpt Interactive Shell".cyan().bold());
-        println!("{}", "Type 'help' for commands, 'exit' to quit".dimmed());
         
-        // Load shell history
-        self.load_history()?;
+        // Show AI provider info
+        if let Some(ai_provider) = &self.ai_provider {
+            println!("{}: {} ({})", 
+                "AI Provider".green().bold(), 
+                ai_provider.get_provider().to_string(),
+                ai_provider.get_model());
+        } else {
+            println!("{}: {}", "AI Provider".yellow().bold(), "Simple mode (no AI)");
+        }
+        
+        println!("{}", "Type 'help' for commands, 'exit' to quit".dimmed());
+        println!("{}", "Use Tab for command completion, Ctrl+C to interrupt, Ctrl+D to exit".dimmed());
         
         loop {
-            // Display prompt
-            print!("{}", "ai.shell> ".green().bold());
-            io::stdout().flush()?;
+            // Read user input with rustyline (supports completion, history, etc.)
+            let readline = self.editor.readline("ai.shell> ");
             
-            // Read user input
-            let mut input = String::new();
-            match io::stdin().read_line(&mut input) {
-                Ok(0) => {
-                    // EOF (Ctrl+D)
-                    println!("\n{}", "Goodbye!".cyan());
-                    break;
-                }
-                Ok(_) => {
-                    let input = input.trim();
+            match readline {
+                Ok(line) => {
+                    let input = line.trim();
                     
                     // Skip empty input
                     if input.is_empty() {
@@ -96,15 +220,26 @@ impl ShellMode {
                     }
                     
                     // Add to history
-                    self.history.push(input.to_string());
+                    self.editor.add_history_entry(input)
+                        .context("Failed to add to history")?;
                     
                     // Handle input
                     if let Err(e) = self.handle_input(input).await {
                         println!("{}: {}", "Error".red().bold(), e);
                     }
                 }
-                Err(e) => {
-                    println!("{}: {}", "Input error".red().bold(), e);
+                Err(ReadlineError::Interrupted) => {
+                    // Ctrl+C
+                    println!("{}",  "Use 'exit' or Ctrl+D to quit".yellow());
+                    continue;
+                }
+                Err(ReadlineError::Eof) => {
+                    // Ctrl+D
+                    println!("\n{}", "Goodbye!".cyan());
+                    break;
+                }
+                Err(err) => {
+                    println!("{}: {}", "Input error".red().bold(), err);
                     break;
                 }
             }
@@ -148,27 +283,39 @@ impl ShellMode {
         println!("\n{}", "ai.gpt Interactive Shell Commands".cyan().bold());
         println!();
         
+        println!("{}", "Navigation & Input:".yellow().bold());
+        println!("  {} - Tab completion for commands and files", "Tab".green());
+        println!("  {} - Command history (previous/next)", "↑/↓ or Ctrl+P/N".green());
+        println!("  {} - Interrupt current input", "Ctrl+C".green());
+        println!("  {} - Exit shell", "Ctrl+D".green());
+        println!();
+        
         println!("{}", "Basic Commands:".yellow().bold());
         println!("  {} - Show this help", "help".green());
         println!("  {} - Exit the shell", "exit, quit".green());
+        println!("  {} - Clear screen", "/clear".green());
+        println!("  {} - Show command history", "/history".green());
         println!();
         
         println!("{}", "Shell Commands:".yellow().bold());
-        println!("  {} - Execute shell command", "!<command>".green());
+        println!("  {} - Execute shell command (Tab completion)", "!<command>".green());
         println!("  {} - List files", "!ls".green());
         println!("  {} - Show current directory", "!pwd".green());
+        println!("  {} - Git status", "!git status".green());
+        println!("  {} - Cargo build", "!cargo build".green());
         println!();
         
         println!("{}", "AI Commands:".yellow().bold());
-        println!("  {} - Show AI status", "/status".green());
-        println!("  {} - Show relationships", "/relationships".green());
-        println!("  {} - Show memories", "/memories".green());
+        println!("  {} - Show AI status and relationship", "/status".green());
+        println!("  {} - List all relationships", "/relationships".green());
+        println!("  {} - Show recent memories", "/memories".green());
         println!("  {} - Analyze current directory", "/analyze".green());
-        println!("  {} - Show fortune", "/fortune".green());
+        println!("  {} - Show today's fortune", "/fortune".green());
         println!();
         
         println!("{}", "Conversation:".yellow().bold());
-        println!("  {} - Chat with AI", "Any other input".green());
+        println!("  {} - Chat with AI using configured provider", "Any other input".green());
+        println!("  {} - AI responses track relationship changes", "Relationship tracking".dimmed());
         println!();
     }
     
@@ -426,51 +573,25 @@ impl ShellMode {
     fn show_history(&self) {
         println!("\n{}", "Command History".cyan().bold());
         
-        if self.history.is_empty() {
+        let history = self.editor.history();
+        if history.is_empty() {
             println!("{}", "No commands in history".yellow());
             return;
         }
         
-        for (i, command) in self.history.iter().rev().take(20).enumerate() {
-            println!("{:2}: {}", i + 1, command);
+        // Show last 20 commands
+        let start = if history.len() > 20 { history.len() - 20 } else { 0 };
+        for (i, entry) in history.iter().enumerate().skip(start) {
+            println!("{:2}: {}", i + 1, entry);
         }
         
         println!();
     }
     
-    fn load_history(&mut self) -> Result<()> {
+    fn save_history(&mut self) -> Result<()> {
         let history_file = self.config.data_dir.join("shell_history.txt");
-        
-        if history_file.exists() {
-            let content = std::fs::read_to_string(&history_file)
-                .context("Failed to read shell history")?;
-            
-            self.history = content.lines()
-                .map(|line| line.to_string())
-                .collect();
-        }
-        
-        Ok(())
-    }
-    
-    fn save_history(&self) -> Result<()> {
-        let history_file = self.config.data_dir.join("shell_history.txt");
-        
-        // Keep only last 1000 commands
-        let history_to_save: Vec<_> = if self.history.len() > 1000 {
-            self.history.iter().skip(self.history.len() - 1000).collect()
-        } else {
-            self.history.iter().collect()
-        };
-        
-        let content = history_to_save.iter()
-            .map(|s| s.as_str())
-            .collect::<Vec<_>>()
-            .join("\n");
-        
-        std::fs::write(&history_file, content)
+        self.editor.save_history(&history_file)
             .context("Failed to save shell history")?;
-        
         Ok(())
     }
 }

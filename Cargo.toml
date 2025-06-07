@@ -1,9 +1,17 @@
 [package]
-name = "aigpt-rs"
+name = "aigpt"
 version = "0.1.0"
 edition = "2021"
 description = "AI.GPT - Autonomous transmission AI with unique personality (Rust implementation)"
 authors = ["syui"]
+
+[[bin]]
+name = "aigpt"
+path = "src/main.rs"
+
+[[bin]]
+name = "test-config"
+path = "src/bin/test_config.rs"
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
@@ -18,3 +26,8 @@ colored = "2.0"
 dirs = "5.0"
 reqwest = { version = "0.11", features = ["json"] }
 url = "2.4"
+rustyline = "14.0"
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+hyper = "1.0"

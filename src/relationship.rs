@@ -270,6 +270,22 @@ impl RelationshipTracker {
         
         Ok(())
     }
+    
+    pub fn get_all_relationships(&self) -> Result<HashMap<String, RelationshipCompact>> {
+        let mut result = HashMap::new();
+        
+        for (user_id, relationship) in &self.relationships {
+            result.insert(user_id.clone(), RelationshipCompact {
+                score: relationship.score,
+                trust_level: relationship.score / 10.0, // Simplified trust calculation
+                interaction_count: relationship.total_interactions,
+                last_interaction: relationship.last_interaction.unwrap_or(relationship.created_at),
+                status: relationship.status.clone(),
+            });
+        }
+        
+        Ok(result)
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -279,4 +295,13 @@ pub struct RelationshipStats {
     pub transmission_enabled: usize,
     pub broken_relationships: usize,
     pub avg_score: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RelationshipCompact {
+    pub score: f64,
+    pub trust_level: f64,
+    pub interaction_count: u32,
+    pub last_interaction: DateTime<Utc>,
+    pub status: RelationshipStatus,
 }

@@ -268,7 +268,7 @@ impl AIScheduler {
         self.tasks.get(task_id)
     }
     
-    pub fn list_tasks(&self) -> &HashMap<String, ScheduledTask> {
+    pub fn get_tasks(&self) -> &HashMap<String, ScheduledTask> {
         &self.tasks
     }
     
@@ -415,6 +415,28 @@ impl AIScheduler {
     }
 }
 
+// Type alias for compatibility with CLI interface
+pub type Scheduler = AIScheduler;
+
+impl Scheduler {
+    pub fn list_tasks(&self) -> Result<Vec<ScheduledTaskInfo>> {
+        let tasks: Vec<ScheduledTaskInfo> = self.tasks
+            .values()
+            .map(|task| ScheduledTaskInfo {
+                name: task.task_type.to_string(),
+                schedule: match task.interval_hours {
+                    Some(hours) => format!("Every {} hours", hours),
+                    None => "One-time".to_string(),
+                },
+                next_run: task.next_run,
+                enabled: task.enabled,
+            })
+            .collect();
+        
+        Ok(tasks)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SchedulerStats {
     pub total_tasks: usize,
@@ -425,4 +447,12 @@ pub struct SchedulerStats {
     pub today_executions: usize,
     pub success_rate: f64,
     pub avg_duration_ms: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ScheduledTaskInfo {
+    pub name: String,
+    pub schedule: String,
+    pub next_run: DateTime<Utc>,
+    pub enabled: bool,
 }

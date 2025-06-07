@@ -234,6 +234,67 @@ impl MemoryManager {
         
         Ok(())
     }
+    
+    pub fn get_stats(&self) -> Result<MemoryStats> {
+        let total_memories = self.memories.len();
+        let core_memories = self.memories.values()
+            .filter(|m| matches!(m.memory_type, MemoryType::Core))
+            .count();
+        let summary_memories = self.memories.values()
+            .filter(|m| matches!(m.memory_type, MemoryType::Summary))
+            .count();
+        let interaction_memories = self.memories.values()
+            .filter(|m| matches!(m.memory_type, MemoryType::Interaction))
+            .count();
+        
+        let avg_importance = if total_memories > 0 {
+            self.memories.values().map(|m| m.importance).sum::<f64>() / total_memories as f64
+        } else {
+            0.0
+        };
+        
+        Ok(MemoryStats {
+            total_memories,
+            core_memories,
+            summary_memories,
+            interaction_memories,
+            avg_importance,
+        })
+    }
+    
+    pub async fn run_maintenance(&mut self) -> Result<()> {
+        // Cleanup old, low-importance memories
+        let cutoff_date = Utc::now() - chrono::Duration::days(30);
+        let memory_ids_to_remove: Vec<String> = self.memories
+            .iter()
+            .filter(|(_, m)| {
+                m.importance < 0.3 
+                && m.created_at < cutoff_date 
+                && m.access_count <= 1
+                && !matches!(m.memory_type, MemoryType::Core)
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        
+        for id in memory_ids_to_remove {
+            self.memories.remove(&id);
+        }
+        
+        // Mark old memories as forgotten instead of deleting
+        let forgotten_cutoff = Utc::now() - chrono::Duration::days(90);
+        for memory in self.memories.values_mut() {
+            if memory.created_at < forgotten_cutoff 
+                && memory.importance < 0.2 
+                && !matches!(memory.memory_type, MemoryType::Core) {
+                memory.memory_type = MemoryType::Forgotten;
+            }
+        }
+        
+        // Save changes
+        self.save_memories()?;
+        
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]

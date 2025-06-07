@@ -1,7 +1,22 @@
 use serde::{Deserialize, Serialize};
-use anyhow::Result;
-use serde_json::Value;
+use anyhow::{Result, Context};
+use serde_json::{json, Value};
 use std::path::Path;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use colored::*;
+use std::collections::HashMap;
+use std::process::Command;
+
+use axum::{
+    extract::{Path as AxumPath, State},
+    http::{StatusCode, Method},
+    response::Json,
+    routing::{get, post},
+    Router,
+};
+use tower::ServiceBuilder;
+use tower_http::cors::{CorsLayer, Any};
 
 use crate::config::Config;
 use crate::persona::Persona;
@@ -37,6 +52,32 @@ pub struct MCPError {
     pub data: Option<Value>,
 }
 
+// HTTP MCP Server state
+pub type AppState = Arc<Mutex<MCPServer>>;
+
+// MCP HTTP request types for REST-style endpoints
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MCPHttpRequest {
+    pub user_id: Option<String>,
+    pub message: Option<String>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub query: Option<String>,
+    pub keywords: Option<Vec<String>>,
+    pub limit: Option<usize>,
+    pub content: Option<String>,
+    pub file_path: Option<String>,
+    pub command: Option<String>,
+    pub pattern: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MCPHttpResponse {
+    pub success: bool,
+    pub result: Option<Value>,
+    pub error: Option<String>,
+}
+
 pub struct MCPServer {
     config: Config,
     persona: Persona,
@@ -44,12 +85,14 @@ pub struct MCPServer {
     scheduler: AIScheduler,
     service_client: ServiceClient,
     service_detector: ServiceDetector,
+    user_id: String,
+    data_dir: Option<std::path::PathBuf>,
 }
 
 impl MCPServer {
-    pub fn new(config: Config) -> Result<Self> {
+    pub fn new(config: Config, user_id: String, data_dir: Option<std::path::PathBuf>) -> Result<Self> {
         let persona = Persona::new(&config)?;
-        let transmission_controller = TransmissionController::new(&config)?;
+        let transmission_controller = TransmissionController::new(config.clone())?;
         let scheduler = AIScheduler::new(&config)?;
         let service_client = ServiceClient::new();
         let service_detector = ServiceDetector::new();
@@ -61,6 +104,8 @@ impl MCPServer {
             scheduler,
             service_client,
             service_detector,
+            user_id,
+            data_dir,
         })
     }
     
@@ -1023,7 +1068,7 @@ impl MCPServer {
     
     async fn tool_get_scheduler_status(&self, _args: Value) -> Result<Value> {
         let stats = self.scheduler.get_scheduler_stats();
-        let upcoming_tasks: Vec<_> = self.scheduler.list_tasks()
+        let upcoming_tasks: Vec<_> = self.scheduler.get_tasks()
             .values()
             .filter(|task| task.enabled)
             .take(10)
@@ -1082,16 +1127,93 @@ impl MCPServer {
         println!("🚀 Starting MCP Server on port {}", port);
         println!("📋 Available tools: {}", self.get_tools().len());
         
-        // In a real implementation, this would start an HTTP/WebSocket server
-        // For now, we'll just print the available tools
+        // Print available tools
         for tool in self.get_tools() {
-            println!("  - {}: {}", tool.name.cyan(), tool.description);
+            println!("  - {}: {}", ColorExt::cyan(tool.name.as_str()), tool.description);
         }
         
         println!("✅ MCP Server ready for requests");
         
-        // Placeholder for actual server implementation
+        // Create shared state
+        let app_state: AppState = Arc::new(Mutex::new(
+            MCPServer::new(
+                self.config.clone(),
+                self.user_id.clone(),
+                self.data_dir.clone(),
+            )?
+        ));
+        
+        // Create router with CORS
+        let app = Router::new()
+            // MCP Core endpoints
+            .route("/mcp/tools", get(list_tools))
+            .route("/mcp/call/:tool_name", post(call_tool))
+            
+            // AI Chat endpoints
+            .route("/chat", post(chat_with_ai_handler))
+            .route("/status", get(get_status_handler))
+            .route("/status/:user_id", get(get_status_with_user_handler))
+            
+            // Memory endpoints
+            .route("/memories/:user_id", get(get_memories_handler))
+            .route("/memories/:user_id/search", post(search_memories_handler))
+            .route("/memories/:user_id/contextual", post(get_contextual_memories_handler))
+            .route("/memories/:user_id/summary", post(create_summary_handler))
+            .route("/memories/:user_id/core", post(create_core_memory_handler))
+            
+            // Relationship endpoints
+            .route("/relationships", get(get_relationships_handler))
+            
+            // System endpoints
+            .route("/transmissions", get(check_transmissions_handler))
+            .route("/maintenance", post(run_maintenance_handler))
+            .route("/scheduler", post(run_scheduler_handler))
+            .route("/scheduler/status", get(get_scheduler_status_handler))
+            .route("/scheduler/history", get(get_transmission_history_handler))
+            
+            // File operations
+            .route("/files", get(list_files_handler))
+            .route("/files/analyze", post(analyze_file_handler))
+            .route("/files/write", post(write_file_handler))
+            
+            // Shell execution
+            .route("/execute", post(execute_command_handler))
+            
+            // AI Card and AI Log proxy endpoints
+            .route("/card/user_cards/:user_id", get(get_user_cards_handler))
+            .route("/card/draw", post(draw_card_handler))
+            .route("/card/stats", get(get_card_stats_handler))
+            .route("/log/posts", get(get_blog_posts_handler))
+            .route("/log/posts", post(create_blog_post_handler))
+            .route("/log/build", post(build_blog_handler))
+            
+            .layer(
+                ServiceBuilder::new()
+                    .layer(
+                        CorsLayer::new()
+                            .allow_origin(Any)
+                            .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+                            .allow_headers(Any),
+                    )
+            )
+            .with_state(app_state);
+        
+        // Start the server
+        let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
+            .await
+            .context("Failed to bind to address")?;
+            
+        println!("🌐 HTTP MCP Server listening on http://0.0.0.0:{}", port);
+        
+        axum::serve(listener, app)
+            .await
+            .context("Server error")?;
+            
         Ok(())
+    }
+    
+    pub async fn run(&mut self, port: u16) -> Result<()> {
+        self.start_server(port).await
     }
 }
 
@@ -1104,4 +1226,517 @@ impl ColorExt for str {
     fn cyan(&self) -> String {
         self.to_string() // In real implementation, would add ANSI color codes
     }
+}
+
+// HTTP Handlers for MCP endpoints
+
+// MCP Core handlers
+async fn list_tools(State(state): State<AppState>) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    let tools = server.get_tools();
+    
+    Json(MCPHttpResponse {
+        success: true,
+        result: Some(json!({
+            "tools": tools
+        })),
+        error: None,
+    })
+}
+
+async fn call_tool(
+    State(state): State<AppState>,
+    AxumPath(tool_name): AxumPath<String>,
+    Json(request): Json<MCPHttpRequest>,
+) -> Json<MCPHttpResponse> {
+    let mut server = state.lock().await;
+    
+    // Create MCP request from HTTP request
+    let mcp_request = MCPRequest {
+        method: tool_name,
+        params: json!(request),
+        id: Some(json!("http_request")),
+    };
+    
+    let response = server.handle_request(mcp_request).await;
+    
+    Json(MCPHttpResponse {
+        success: response.error.is_none(),
+        result: response.result,
+        error: response.error.map(|e| e.message),
+    })
+}
+
+// AI Chat handlers
+async fn chat_with_ai_handler(
+    State(state): State<AppState>,
+    Json(request): Json<MCPHttpRequest>,
+) -> Json<MCPHttpResponse> {
+    let mut server = state.lock().await;
+    
+    let user_id = request.user_id.unwrap_or_else(|| "default_user".to_string());
+    let message = request.message.unwrap_or_default();
+    
+    let args = json!({
+        "user_id": user_id,
+        "message": message,
+        "provider": request.provider,
+        "model": request.model
+    });
+    
+    match server.tool_chat_with_ai(args).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+async fn get_status_handler(State(state): State<AppState>) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    
+    match server.tool_get_status(json!({})).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+async fn get_status_with_user_handler(
+    State(state): State<AppState>,
+    AxumPath(user_id): AxumPath<String>,
+) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    
+    let args = json!({
+        "user_id": user_id
+    });
+    
+    match server.tool_get_status(args).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+// Memory handlers
+async fn get_memories_handler(
+    State(state): State<AppState>,
+    AxumPath(user_id): AxumPath<String>,
+) -> Json<MCPHttpResponse> {
+    let mut server = state.lock().await;
+    
+    let args = json!({
+        "user_id": user_id,
+        "limit": 10
+    });
+    
+    match server.tool_get_memories(args).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+async fn search_memories_handler(
+    State(state): State<AppState>,
+    AxumPath(user_id): AxumPath<String>,
+    Json(request): Json<MCPHttpRequest>,
+) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    
+    let args = json!({
+        "user_id": user_id,
+        "query": request.query.unwrap_or_default(),
+        "keywords": request.keywords.unwrap_or_default()
+    });
+    
+    match server.tool_search_memories(args).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+async fn get_contextual_memories_handler(
+    State(state): State<AppState>,
+    AxumPath(user_id): AxumPath<String>,
+    Json(request): Json<MCPHttpRequest>,
+) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    
+    let args = json!({
+        "user_id": user_id,
+        "query": request.query.unwrap_or_default(),
+        "limit": request.limit.unwrap_or(10)
+    });
+    
+    match server.tool_get_contextual_memories(args).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+async fn create_summary_handler(
+    State(state): State<AppState>,
+    AxumPath(user_id): AxumPath<String>,
+    Json(request): Json<MCPHttpRequest>,
+) -> Json<MCPHttpResponse> {
+    let mut server = state.lock().await;
+    
+    let args = json!({
+        "user_id": user_id,
+        "content": request.content.unwrap_or_default()
+    });
+    
+    match server.tool_create_summary(args).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+async fn create_core_memory_handler(
+    State(state): State<AppState>,
+    AxumPath(user_id): AxumPath<String>,
+    Json(request): Json<MCPHttpRequest>,
+) -> Json<MCPHttpResponse> {
+    let mut server = state.lock().await;
+    
+    let args = json!({
+        "user_id": user_id,
+        "content": request.content.unwrap_or_default()
+    });
+    
+    match server.tool_create_core_memory(args).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+// Relationship handlers
+async fn get_relationships_handler(State(state): State<AppState>) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    
+    match server.tool_get_relationships(json!({})).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+// System handlers
+async fn check_transmissions_handler(State(state): State<AppState>) -> Json<MCPHttpResponse> {
+    let mut server = state.lock().await;
+    
+    match server.tool_check_transmissions(json!({})).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+async fn run_maintenance_handler(State(state): State<AppState>) -> Json<MCPHttpResponse> {
+    let mut server = state.lock().await;
+    
+    match server.tool_run_maintenance(json!({})).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+async fn run_scheduler_handler(State(state): State<AppState>) -> Json<MCPHttpResponse> {
+    let mut server = state.lock().await;
+    
+    match server.tool_run_scheduler(json!({})).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+async fn get_scheduler_status_handler(State(state): State<AppState>) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    
+    match server.tool_get_scheduler_status(json!({})).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+async fn get_transmission_history_handler(State(state): State<AppState>) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    
+    let args = json!({
+        "limit": 10
+    });
+    
+    match server.tool_get_transmission_history(args).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+// File operation handlers
+async fn list_files_handler(State(state): State<AppState>) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    
+    let args = json!({
+        "path": ".",
+        "pattern": "*"
+    });
+    
+    match server.tool_list_files(args).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+async fn analyze_file_handler(
+    State(state): State<AppState>,
+    Json(request): Json<MCPHttpRequest>,
+) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    
+    let args = json!({
+        "file_path": request.file_path.unwrap_or_default()
+    });
+    
+    match server.tool_analyze_file(args).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+async fn write_file_handler(
+    State(state): State<AppState>,
+    Json(request): Json<MCPHttpRequest>,
+) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    
+    let args = json!({
+        "file_path": request.file_path.unwrap_or_default(),
+        "content": request.content.unwrap_or_default()
+    });
+    
+    match server.tool_write_file(args).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+// Shell execution handler
+async fn execute_command_handler(
+    State(state): State<AppState>,
+    Json(request): Json<MCPHttpRequest>,
+) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    
+    let args = json!({
+        "command": request.command.unwrap_or_default()
+    });
+    
+    match server.tool_execute_command(args).await {
+        Ok(result) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(result),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+// AI Card proxy handlers (TODO: Fix ServiceClient method visibility)
+async fn get_user_cards_handler(
+    State(_state): State<AppState>,
+    AxumPath(user_id): AxumPath<String>,
+) -> Json<MCPHttpResponse> {
+    // TODO: Implement proper ai.card service integration
+    Json(MCPHttpResponse {
+        success: false,
+        result: None,
+        error: Some(format!("AI Card service integration not yet implemented for user: {}", user_id)),
+    })
+}
+
+async fn draw_card_handler(
+    State(_state): State<AppState>,
+    Json(_request): Json<MCPHttpRequest>,
+) -> Json<MCPHttpResponse> {
+    // TODO: Implement proper ai.card service integration
+    Json(MCPHttpResponse {
+        success: false,
+        result: None,
+        error: Some("AI Card draw service integration not yet implemented".to_string()),
+    })
+}
+
+async fn get_card_stats_handler(State(_state): State<AppState>) -> Json<MCPHttpResponse> {
+    // TODO: Implement proper ai.card service integration
+    Json(MCPHttpResponse {
+        success: false,
+        result: None,
+        error: Some("AI Card stats service integration not yet implemented".to_string()),
+    })
+}
+
+// AI Log proxy handlers (placeholder - these would need to be implemented)
+async fn get_blog_posts_handler(State(_state): State<AppState>) -> Json<MCPHttpResponse> {
+    // TODO: Implement ai.log service integration
+    Json(MCPHttpResponse {
+        success: false,
+        result: None,
+        error: Some("AI Log service integration not yet implemented".to_string()),
+    })
+}
+
+async fn create_blog_post_handler(
+    State(_state): State<AppState>,
+    Json(_request): Json<MCPHttpRequest>,
+) -> Json<MCPHttpResponse> {
+    // TODO: Implement ai.log service integration
+    Json(MCPHttpResponse {
+        success: false,
+        result: None,
+        error: Some("AI Log service integration not yet implemented".to_string()),
+    })
+}
+
+async fn build_blog_handler(State(_state): State<AppState>) -> Json<MCPHttpResponse> {
+    // TODO: Implement ai.log service integration
+    Json(MCPHttpResponse {
+        success: false,
+        result: None,
+        error: Some("AI Log service integration not yet implemented".to_string()),
+    })
 }

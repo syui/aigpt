@@ -44,11 +44,11 @@ pub struct TransmissionController {
 }
 
 impl TransmissionController {
-    pub fn new(config: &Config) -> Result<Self> {
-        let transmission_history = Self::load_transmission_history(config)?;
+    pub fn new(config: Config) -> Result<Self> {
+        let transmission_history = Self::load_transmission_history(&config)?;
         
         Ok(TransmissionController {
-            config: config.clone(),
+            config,
             transmission_history,
             last_check: None,
         })
@@ -385,6 +385,31 @@ impl TransmissionController {
             .context("Failed to write transmission history file")?;
         
         Ok(())
+    }
+    
+    pub async fn check_and_send(&mut self) -> Result<Vec<(String, String)>> {
+        let config = self.config.clone();
+        let mut persona = Persona::new(&config)?;
+        
+        let mut results = Vec::new();
+        
+        // Check autonomous transmissions
+        let autonomous = self.check_autonomous_transmissions(&mut persona).await?;
+        for log in autonomous {
+            if log.success {
+                results.push((log.user_id, log.message));
+            }
+        }
+        
+        // Check breakthrough transmissions
+        let breakthrough = self.check_breakthrough_transmissions(&mut persona).await?;
+        for log in breakthrough {
+            if log.success {
+                results.push((log.user_id, log.message));
+            }
+        }
+        
+        Ok(results)
     }
 }
 

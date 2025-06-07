@@ -150,10 +150,44 @@ impl ChatGPTImporter {
                     match role.as_str() {
                         "user" | "assistant" => {
                             if let Some(content) = &message.content {
-                                if content.content_type == "text" && !content.parts.is_empty() {
+                                let content_text = if content.content_type == "text" && !content.parts.is_empty() {
+                                    // Extract text from parts (handle both strings and mixed content)
+                                    content.parts.iter()
+                                        .filter_map(|part| part.as_str())
+                                        .collect::<Vec<&str>>()
+                                        .join("\n")
+                                } else if content.content_type == "multimodal_text" {
+                                    // Extract text parts from multimodal content
+                                    let mut text_parts = Vec::new();
+                                    for part in &content.parts {
+                                        if let Some(text) = part.as_str() {
+                                            if !text.is_empty() {
+                                                text_parts.push(text);
+                                            }
+                                        }
+                                        // Skip non-text parts (like image_asset_pointer)
+                                    }
+                                    if text_parts.is_empty() {
+                                        continue; // Skip if no text content
+                                    }
+                                    text_parts.join("\n")
+                                } else if content.content_type == "user_editable_context" {
+                                    // Handle user context messages
+                                    if let Some(instructions) = &content.user_instructions {
+                                        format!("User instructions: {}", instructions)
+                                    } else if let Some(profile) = &content.user_profile {
+                                        format!("User profile: {}", profile)
+                                    } else {
+                                        continue; // Skip empty context messages
+                                    }
+                                } else {
+                                    continue; // Skip other content types for now
+                                };
+                                
+                                if !content_text.trim().is_empty() {
                                     messages.push(ChatGPTMessage {
                                         role: role.clone(),
-                                        content: content.parts.join("\n"),
+                                        content: content_text,
                                         create_time: message.create_time,
                                     });
                                 }
@@ -280,7 +314,12 @@ pub struct ChatGPTAuthor {
 #[derive(Debug, Deserialize)]
 pub struct ChatGPTContent {
     pub content_type: String,
-    pub parts: Vec<String>,
+    #[serde(default)]
+    pub parts: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub user_profile: Option<String>,
+    #[serde(default)]
+    pub user_instructions: Option<String>,
 }
 
 // Simplified message structure for processing
