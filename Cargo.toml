@@ -31,3 +31,7 @@ axum = "0.7"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors"] }
 hyper = "1.0"
+
+# OpenAI API client
+async-openai = "0.23"
+openai_api_rust = "0.1"

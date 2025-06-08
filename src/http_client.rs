@@ -65,6 +65,22 @@ impl ServiceClient {
         let json: Value = response.json().await?;
         Ok(json)
     }
+
+    /// Get user's card collection from ai.card service
+    pub async fn get_user_cards(&self, user_did: &str) -> Result<Value> {
+        let url = format!("http://localhost:8000/api/v1/cards/user/{}", user_did);
+        self.get_request(&url).await
+    }
+
+    /// Draw a card for user from ai.card service
+    pub async fn draw_card(&self, user_did: &str, is_paid: bool) -> Result<Value> {
+        let payload = serde_json::json!({
+            "user_did": user_did,
+            "is_paid": is_paid
+        });
+
+        self.post_request("http://localhost:8000/api/v1/cards/draw", &payload).await
+    }
 }
 
 /// Service status enum

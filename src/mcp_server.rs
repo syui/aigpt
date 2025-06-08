@@ -378,6 +378,52 @@ impl MCPServer {
                     }
                 }),
             },
+            MCPTool {
+                name: "get_user_cards".to_string(),
+                description: "Get user's card collection from ai.card service".to_string(),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "user_did": {
+                            "type": "string",
+                            "description": "User DID to get cards for"
+                        }
+                    },
+                    "required": ["user_did"]
+                }),
+            },
+            MCPTool {
+                name: "draw_card".to_string(),
+                description: "Draw a card from ai.card gacha system".to_string(),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "user_did": {
+                            "type": "string",
+                            "description": "User DID to draw card for"
+                        },
+                        "is_paid": {
+                            "type": "boolean",
+                            "description": "Whether this is a premium draw (default: false)"
+                        }
+                    },
+                    "required": ["user_did"]
+                }),
+            },
+            MCPTool {
+                name: "get_draw_status".to_string(),
+                description: "Check if user can draw cards (daily limit check)".to_string(),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "user_did": {
+                            "type": "string",
+                            "description": "User DID to check draw status for"
+                        }
+                    },
+                    "required": ["user_did"]
+                }),
+            },
         ]
     }
     
@@ -437,6 +483,9 @@ impl MCPServer {
             "run_scheduler" => self.tool_run_scheduler(arguments).await,
             "get_scheduler_status" => self.tool_get_scheduler_status(arguments).await,
             "get_transmission_history" => self.tool_get_transmission_history(arguments).await,
+            "get_user_cards" => self.tool_get_user_cards(arguments).await,
+            "draw_card" => self.tool_draw_card(arguments).await,
+            "get_draw_status" => self.tool_get_draw_status(arguments).await,
             _ => Err(anyhow::anyhow!("Unknown tool: {}", tool_name)),
         }
     }
@@ -461,6 +510,9 @@ impl MCPServer {
             "run_scheduler" => self.tool_run_scheduler(params).await,
             "get_scheduler_status" => self.tool_get_scheduler_status(params).await,
             "get_transmission_history" => self.tool_get_transmission_history(params).await,
+            "get_user_cards" => self.tool_get_user_cards(params).await,
+            "draw_card" => self.tool_draw_card(params).await,
+            "get_draw_status" => self.tool_get_draw_status(params).await,
             _ => Err(anyhow::anyhow!("Unknown tool: {}", tool_name)),
         }
     }
@@ -1144,6 +1196,115 @@ impl MCPServer {
                 }
             ]
         }))
+    }
+    
+    // MARK: - ai.card Integration Tools
+    
+    async fn tool_get_user_cards(&self, args: Value) -> Result<Value> {
+        let user_did = args["user_did"].as_str()
+            .ok_or_else(|| anyhow::anyhow!("Missing user_did"))?;
+        
+        // Use ServiceClient to call ai.card API
+        match self.service_client.get_user_cards(user_did).await {
+            Ok(cards) => {
+                let card_count = cards.as_array().map(|arr| arr.len()).unwrap_or(0);
+                Ok(serde_json::json!({
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": format!("ユーザー {} のカード一覧 ({}枚):\n\n{}", 
+                                           user_did, 
+                                           card_count, 
+                                           serde_json::to_string_pretty(&cards)?)
+                        }
+                    ]
+                }))
+            }
+            Err(e) => {
+                Ok(serde_json::json!({
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": format!("カード取得エラー: {}. ai.cardサーバーが起動していることを確認してください。", e)
+                        }
+                    ]
+                }))
+            }
+        }
+    }
+    
+    async fn tool_draw_card(&self, args: Value) -> Result<Value> {
+        let user_did = args["user_did"].as_str()
+            .ok_or_else(|| anyhow::anyhow!("Missing user_did"))?;
+        let is_paid = args["is_paid"].as_bool().unwrap_or(false);
+        
+        // Use ServiceClient to call ai.card API
+        match self.service_client.draw_card(user_did, is_paid).await {
+            Ok(draw_result) => {
+                Ok(serde_json::json!({
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": format!("🎉 カードドロー結果:\n\n{}", 
+                                           serde_json::to_string_pretty(&draw_result)?)
+                        }
+                    ]
+                }))
+            }
+            Err(e) => {
+                let error_msg = e.to_string();
+                if error_msg.contains("429") {
+                    Ok(serde_json::json!({
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "⏰ カードドロー制限中です。日別制限により、現在カードを引くことができません。時間を置いてから再度お試しください。"
+                            }
+                        ]
+                    }))
+                } else {
+                    Ok(serde_json::json!({
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": format!("カードドローエラー: {}. ai.cardサーバーが起動していることを確認してください。", e)
+                            }
+                        ]
+                    }))
+                }
+            }
+        }
+    }
+    
+    async fn tool_get_draw_status(&self, args: Value) -> Result<Value> {
+        let user_did = args["user_did"].as_str()
+            .ok_or_else(|| anyhow::anyhow!("Missing user_did"))?;
+        
+        // Use ServiceClient to call ai.card API
+        match self.service_client.get_request(&format!("http://localhost:8000/api/v1/cards/draw-status/{}", user_did)).await {
+            Ok(status) => {
+                Ok(serde_json::json!({
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": format!("ユーザー {} のドロー状況:\n\n{}", 
+                                           user_did, 
+                                           serde_json::to_string_pretty(&status)?)
+                        }
+                    ]
+                }))
+            }
+            Err(e) => {
+                Ok(serde_json::json!({
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": format!("ドロー状況取得エラー: {}. ai.cardサーバーが起動していることを確認してください。", e)
+                        }
+                    ]
+                }))
+            }
+        }
     }
     
     pub async fn start_server(&mut self, port: u16) -> Result<()> {

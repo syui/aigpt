@@ -109,37 +109,58 @@ impl Persona {
             0.0
         };
         
-        // Generate AI response
-        let ai_config = self.config.get_ai_config(provider, model)?;
-        let ai_client = AIProviderClient::new(ai_config);
-        
-        // Build conversation context
-        let mut messages = Vec::new();
-        
-        // Get recent memories for context
-        if let Some(memory_manager) = &mut self.memory_manager {
-            let recent_memories = memory_manager.get_memories(user_id, 5);
-            if !recent_memories.is_empty() {
-                let context = recent_memories.iter()
-                    .map(|m| m.content.clone())
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                messages.push(ChatMessage::system(format!("Previous conversation context:\n{}", context)));
+        // Check provider type and use appropriate client
+        let response = if provider.as_deref() == Some("openai") {
+            // Use OpenAI provider with MCP tools
+            use crate::openai_provider::OpenAIProvider;
+            
+            // Get OpenAI API key from config or environment
+            let api_key = std::env::var("OPENAI_API_KEY")
+                .or_else(|_| {
+                    self.config.providers.get("openai")
+                        .and_then(|p| p.api_key.clone())
+                        .ok_or_else(|| std::env::VarError::NotPresent)
+                })
+                .map_err(|_| anyhow::anyhow!("OpenAI API key not found. Set OPENAI_API_KEY environment variable or add to config."))?;
+            
+            let openai_model = model.unwrap_or_else(|| "gpt-4".to_string());
+            let openai_provider = OpenAIProvider::new(api_key, Some(openai_model));
+            
+            // Use OpenAI with MCP tools support
+            openai_provider.chat_with_mcp(message.to_string(), user_id.to_string()).await?
+        } else {
+            // Use existing AI provider (Ollama)
+            let ai_config = self.config.get_ai_config(provider, model)?;
+            let ai_client = AIProviderClient::new(ai_config);
+            
+            // Build conversation context
+            let mut messages = Vec::new();
+            
+            // Get recent memories for context
+            if let Some(memory_manager) = &mut self.memory_manager {
+                let recent_memories = memory_manager.get_memories(user_id, 5);
+                if !recent_memories.is_empty() {
+                    let context = recent_memories.iter()
+                        .map(|m| m.content.clone())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    messages.push(ChatMessage::system(format!("Previous conversation context:\n{}", context)));
+                }
             }
-        }
-        
-        // Add current message
-        messages.push(ChatMessage::user(message));
-        
-        // Generate system prompt based on personality and relationship
-        let system_prompt = self.generate_system_prompt(user_id);
-        
-        // Get AI response
-        let response = match ai_client.chat(messages, Some(system_prompt)).await {
-            Ok(chat_response) => chat_response.content,
-            Err(_) => {
-                // Fallback to simple response if AI fails
-                format!("I understand your message: '{}'", message)
+            
+            // Add current message
+            messages.push(ChatMessage::user(message));
+            
+            // Generate system prompt based on personality and relationship
+            let system_prompt = self.generate_system_prompt(user_id);
+            
+            // Get AI response
+            match ai_client.chat(messages, Some(system_prompt)).await {
+                Ok(chat_response) => chat_response.content,
+                Err(_) => {
+                    // Fallback to simple response if AI fails
+                    format!("I understand your message: '{}'", message)
+                }
             }
         };
         

@@ -9,6 +9,7 @@ pub mod http_client;
 pub mod import;
 pub mod mcp_server;
 pub mod memory;
+pub mod openai_provider;
 pub mod persona;
 pub mod relationship;
 pub mod scheduler;

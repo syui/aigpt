@@ -13,6 +13,7 @@ mod http_client;
 mod import;
 mod mcp_server;
 mod memory;
+mod openai_provider;
 mod persona;
 mod relationship;
 mod scheduler;
