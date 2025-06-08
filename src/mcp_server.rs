@@ -1860,38 +1860,63 @@ async fn execute_command_handler(
     }
 }
 
-// AI Card proxy handlers (TODO: Fix ServiceClient method visibility)
+// AI Card proxy handlers
 async fn get_user_cards_handler(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     AxumPath(user_id): AxumPath<String>,
 ) -> Json<MCPHttpResponse> {
-    // TODO: Implement proper ai.card service integration
-    Json(MCPHttpResponse {
-        success: false,
-        result: None,
-        error: Some(format!("AI Card service integration not yet implemented for user: {}", user_id)),
-    })
+    let server = state.lock().await;
+    match server.service_client.get_user_cards(&user_id).await {
+        Ok(cards) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(cards),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(format!("Failed to get user cards: {}", e)),
+        }),
+    }
 }
 
 async fn draw_card_handler(
-    State(_state): State<AppState>,
-    Json(_request): Json<MCPHttpRequest>,
+    State(state): State<AppState>,
+    Json(request): Json<MCPHttpRequest>,
 ) -> Json<MCPHttpResponse> {
-    // TODO: Implement proper ai.card service integration
-    Json(MCPHttpResponse {
-        success: false,
-        result: None,
-        error: Some("AI Card draw service integration not yet implemented".to_string()),
-    })
+    // Extract user_did from user_id field, default is_paid to false for now
+    let user_did = request.user_id.as_deref().unwrap_or("unknown");
+    let is_paid = false; // TODO: Add is_paid field to MCPHttpRequest if needed
+
+    let server = state.lock().await;
+    match server.service_client.draw_card(user_did, is_paid).await {
+        Ok(card) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(card),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(format!("Failed to draw card: {}", e)),
+        }),
+    }
 }
 
-async fn get_card_stats_handler(State(_state): State<AppState>) -> Json<MCPHttpResponse> {
-    // TODO: Implement proper ai.card service integration
-    Json(MCPHttpResponse {
-        success: false,
-        result: None,
-        error: Some("AI Card stats service integration not yet implemented".to_string()),
-    })
+async fn get_card_stats_handler(State(state): State<AppState>) -> Json<MCPHttpResponse> {
+    let server = state.lock().await;
+    match server.service_client.get_card_stats().await {
+        Ok(stats) => Json(MCPHttpResponse {
+            success: true,
+            result: Some(stats),
+            error: None,
+        }),
+        Err(e) => Json(MCPHttpResponse {
+            success: false,
+            result: None,
+            error: Some(format!("Failed to get card stats: {}", e)),
+        }),
+    }
 }
 
 // AI Log proxy handlers (placeholder - these would need to be implemented)

@@ -50,7 +50,9 @@
       "Bash(sudo lsof:*)",
       "Bash(sudo:*)",
       "Bash(cargo check:*)",
-      "Bash(cargo run:*)"
+      "Bash(cargo run:*)",
+      "Bash(cargo test:*)",
+      "Bash(diff:*)"
     ],
     "deny": []
   }

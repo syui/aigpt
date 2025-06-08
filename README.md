@@ -1,8 +1,9 @@
-# ai.gpt プロジェクト固有情報
+# ai.gpt
 
 ## プロジェクト概要
 - **名前**: ai.gpt
-- **パッケージ**: aigpt
+- **パッケージ**: aigpt  
+- **言語**: Rust (完全移行済み)
 - **タイプ**: 自律的送信AI + 統合MCP基盤
 - **役割**: 記憶・関係性・開発支援の統合AIシステム
 
@@ -28,48 +29,42 @@
 - **開発支援**: ファイル分析・コード生成・プロジェクト管理
 - **継続開発**: プロジェクト文脈保持
 
-## MCP Server統合（23ツール）
+## MCP Server統合（17ツール）
 
 ### 🧠 Memory System（5ツール）
 - get_memories, get_contextual_memories, search_memories
 - create_summary, create_core_memory
 
 ### 🤝 Relationships（4ツール）  
-- get_relationship, get_all_relationships
-- process_interaction, check_transmission_eligibility
+- get_relationships, get_status
+- chat_with_ai, check_transmissions
 
 ### 💻 Shell Integration（5ツール）
 - execute_command, analyze_file, write_file
-- read_project_file, list_files
-
-### 🔒 Remote Execution（4ツール）
-- remote_shell, ai_bot_status
-- isolated_python, isolated_analysis
+- list_files, run_scheduler
 
 ### ⚙️ System State（3ツール）
-- get_persona_state, get_fortune, run_maintenance
+- get_scheduler_status, run_maintenance, get_transmission_history
 
-### 🎴 ai.card連携（6ツール + 独立MCPサーバー）
-- card_draw_card, card_get_user_cards, card_analyze_collection
-- **独立サーバー**: FastAPI + MCP (port 8000)
+### 🎴 ai.card連携（3ツール）
+- get_user_cards, draw_card, get_draw_status
+- **統合ServiceClient**: 統一されたHTTP通信基盤
 
-### 📝 ai.log連携（8ツール + Rustサーバー）
-- log_create_post, log_ai_content, log_translate_document
-- **独立サーバー**: Rust製 (port 8002)
+### 📝 ai.log連携（新機能）
+- **統合ServiceClient**: ai.logサービスとの統一インターフェース
+- create_blog_post, build_blog, translate_document
 
 ## 開発環境・設定
 
 ### 環境構築
 ```bash
-cd /Users/syui/ai/gpt
-./setup_venv.sh
-source ~/.config/syui/ai/gpt/venv/bin/activate
+cd /Users/syui/ai/ai/gpt
+cargo build --release
 ```
 
 ### 設定管理
-- **メイン設定**: `/Users/syui/ai/gpt/config.json`
+- **メイン設定**: `/Users/syui/ai/ai/gpt/config.json.example`
 - **データディレクトリ**: `~/.config/syui/ai/gpt/`
-- **仮想環境**: `~/.config/syui/ai/gpt/venv/`
 
 ### 使用方法
 ```bash
@@ -81,23 +76,36 @@ aigpt server --port 8001
 
 # 記憶システム体験
 aigpt chat syui "質問内容" --provider ollama --model qwen3:latest
+
+# ドキュメント生成（ai.wiki統合）
+aigpt docs --wiki
 ```
 
 ## 技術アーキテクチャ
 
-### 統合構成
+### Rust実装の統合構成
 ```
-ai.gpt (統合MCPサーバー:8001)
-├── 🧠 ai.gpt core (記憶・関係性・人格)
-├── 💻 ai.shell (Claude Code風開発環境)
-├── 🎴 ai.card (独立MCPサーバー:8000)
-└── 📝 ai.log (Rust製ブログシステム:8002)
+ai.gpt (Rust製MCPサーバー:8001)
+├── 🧠 Memory & Persona System (Rust)
+├── 🤝 Relationship Management (Rust) 
+├── 📊 Scheduler & Transmission (Rust)
+├── 💻 Shell Integration (Rust)
+├── 🔗 ServiceClient (統一HTTP基盤)
+│   ├── 🎴 ai.card (port 8000)
+│   ├── 📝 ai.log (port 8002)
+│   └── 🤖 ai.bot (port 8003)
+└── 📚 ai.wiki Generator (Rust)
 ```
+
+### 最新機能 (2024.06.09)
+- **MCP API共通化**: ServiceClient統一基盤
+- **ai.wiki統合**: 自動ドキュメント生成
+- **サービス設定統一**: 動的サービス登録
+- **完全Rust移行**: Python依存完全排除
 
 ### 今後の展開
 - **自律送信**: atproto実装による真の自発的コミュニケーション
 - **ai.ai連携**: 心理分析AIとの統合
-- **ai.verse統合**: UEメタバースとの連携
 - **分散SNS統合**: atproto完全対応
 
 ## 革新的な特徴
@@ -110,6 +118,10 @@ ai.gpt (統合MCPサーバー:8001)
 - 現実の人間関係と同じ重みを持つAI関係性
 - 修復不可能な関係性破綻システム
 
-### 統合アーキテクチャ
-- fastapi_mcp基盤での複数AIシステム統合
-- OpenAI Function Calling + MCP完全連携実証済み
+### 統合ServiceClient
+- 複数AIサービスの統一インターフェース
+- DRY原則に基づく共通化実現
+- 設定ベースの柔軟なサービス管理
+
+## アーカイブ情報
+詳細な実装履歴・設計資料は `~/ai/ai/ai.wiki/gpt/` に移動済み

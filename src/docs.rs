@@ -575,16 +575,16 @@ impl DocsManager {
         std::fs::write(&title_path, &home_content)?;
         println!("  ✓ Updated: {}", "title.md".green());
         
-        // auto/ディレクトリの更新
-        let auto_dir = ai_wiki_path.join("auto");
-        std::fs::create_dir_all(&auto_dir)?;
-        
+        // プロジェクト個別ディレクトリの更新
         let projects = self.discover_projects()?;
         for project in projects {
-            let auto_content = self.generate_auto_project_content(&project).await?;
-            let auto_file = auto_dir.join(format!("{}.md", project));
-            std::fs::write(&auto_file, auto_content)?;
-            println!("  ✓ Updated: {}", format!("auto/{}.md", project).green());
+            let project_dir = ai_wiki_path.join(&project);
+            std::fs::create_dir_all(&project_dir)?;
+            
+            let project_content = self.generate_auto_project_content(&project).await?;
+            let project_file = project_dir.join(format!("{}.md", project));
+            std::fs::write(&project_file, project_content)?;
+            println!("  ✓ Updated: {}", format!("{}/{}.md", project, project).green());
         }
         
         println!("{}", "✅ ai.wiki updated successfully".green().bold());
@@ -630,7 +630,7 @@ impl DocsManager {
             
             if let Some(projects_in_category) = project_sections.get(category) {
                 for (project, info) in projects_in_category {
-                    content.push_str(&format!("#### [{}](auto/{}.md)\n", project, project));
+                    content.push_str(&format!("#### [{}]({}.md)\n", project, project));
                     
                     if !info.description.is_empty() {
                         content.push_str(&format!("- **名前**: ai.{} - **パッケージ**: ai{} - **タイプ**: {} - **役割**: {}\n\n", 
@@ -638,14 +638,15 @@ impl DocsManager {
                     }
                     
                     content.push_str(&format!("**Status**: {}  \n", info.status));
-                    content.push_str(&format!("**Links**: [Repo](https://git.syui.ai/ai/{}) | [Docs](https://git.syui.ai/ai/{}/src/branch/main/claude.md)\n\n", project, project));
+                    let branch = self.get_project_branch(project);
+                    content.push_str(&format!("**Links**: [Repo](https://git.syui.ai/ai/{}) | [Docs](https://git.syui.ai/ai/{}/src/branch/{}/claude.md)\n\n", project, project, branch));
                 }
             }
         }
         
         content.push_str("---\n\n");
         content.push_str("## ディレクトリ構成\n\n");
-        content.push_str("- `auto/` - 自動生成されたプロジェクト概要\n");
+        content.push_str("- `{project}/` - プロジェクト個別ドキュメント\n");
         content.push_str("- `claude/` - Claude Code作業記録\n");
         content.push_str("- `manual/` - 手動作成ドキュメント\n\n");
         content.push_str("---\n\n");
@@ -655,7 +656,7 @@ impl DocsManager {
         Ok(content)
     }
     
-    /// auto/プロジェクトファイルのコンテンツ生成
+    /// プロジェクト個別ファイルのコンテンツ生成
     async fn generate_auto_project_content(&self, project: &str) -> Result<String> {
         let info = self.load_project_info(project).unwrap_or_default();
         let mut content = String::new();
@@ -669,7 +670,8 @@ impl DocsManager {
         content.push_str(&format!("- **タイプ**: {}\n", info.project_type));
         content.push_str(&format!("- **説明**: {}\n", info.description));
         content.push_str(&format!("- **ステータス**: {}\n", info.status));
-        content.push_str("- **ブランチ**: main\n");
+        let branch = self.get_project_branch(project);
+        content.push_str(&format!("- **ブランチ**: {}\n", branch));
         content.push_str("- **最終更新**: Unknown\n\n");
         
         // プロジェクト固有の機能情報を追加
@@ -684,7 +686,8 @@ impl DocsManager {
         content.push_str("## リンク\n");
         content.push_str(&format!("- **Repository**: https://git.syui.ai/ai/{}\n", project));
         content.push_str(&format!("- **Project Documentation**: [claude/projects/{}.md](https://git.syui.ai/ai/ai/src/branch/main/claude/projects/{}.md)\n", project, project));
-        content.push_str(&format!("- **Generated Documentation**: [{}/claude.md](https://git.syui.ai/ai/{}/src/branch/main/claude.md)\n\n", project, project));
+        let branch = self.get_project_branch(project);
+        content.push_str(&format!("- **Generated Documentation**: [{}/claude.md](https://git.syui.ai/ai/{}/src/branch/{}/claude.md)\n\n", project, project, branch));
         
         content.push_str("---\n");
         content.push_str(&format!("*このページは claude/projects/{}.md から自動生成されました*\n", project));
@@ -760,5 +763,27 @@ impl DocsManager {
         }
         
         Ok(())
+    }
+    
+    /// メインai.jsonからプロジェクトのブランチ情報を取得
+    fn get_project_branch(&self, project: &str) -> String {
+        let main_ai_json_path = self.ai_root.join("ai.json");
+        
+        if main_ai_json_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&main_ai_json_path) {
+                if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(ai_section) = json_data.get("ai") {
+                        if let Some(project_data) = ai_section.get(project) {
+                            if let Some(branch) = project_data.get("branch").and_then(|v| v.as_str()) {
+                                return branch.to_string();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // デフォルトはmain
+        "main".to_string()
     }
 }

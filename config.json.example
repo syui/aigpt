@@ -20,7 +20,7 @@
   "mcp": {
     "servers": {
       "ai_gpt": {
-        "base_url": "http://localhost:8001",
+        "base_url": "http://localhost:8080",
         "name": "ai.gpt MCP Server",
         "timeout": "10.0",
         "endpoints": {
@@ -42,19 +42,14 @@
           "card_get_card_details": "/card_get_card_details",
           "card_analyze_collection": "/card_analyze_collection",
           "card_get_gacha_stats": "/card_get_gacha_stats",
-          "card_system_status": "/card_system_status",
-          "log_create_post": "/log_create_post",
-          "log_list_posts": "/log_list_posts",
-          "log_build_blog": "/log_build_blog",
-          "log_get_post": "/log_get_post",
-          "log_system_status": "/log_system_status",
-          "log_ai_content": "/log_ai_content",
-          "log_translate_document": "/log_translate_document",
-          "log_generate_docs": "/log_generate_docs"
+          "card_system_status": "/card_system_status"
         }
       }
     },
     "enabled": "true",
     "auto_detect": "true"
+  },
+  "docs": {
+    "ai_root": "~/ai/ai"
   }
 }

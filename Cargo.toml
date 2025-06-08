@@ -9,10 +9,6 @@ authors = ["syui"]
 name = "aigpt"
 path = "src/main.rs"
 
-[[bin]]
-name = "test-config"
-path = "src/bin/test_config.rs"
-
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }

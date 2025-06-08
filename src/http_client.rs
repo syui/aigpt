@@ -1,21 +1,110 @@
 use anyhow::{anyhow, Result};
 use reqwest::Client;
 use serde_json::Value;
+use serde::{Serialize, Deserialize};
 use std::time::Duration;
+use std::collections::HashMap;
+
+/// Service configuration for unified service management
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceConfig {
+    pub base_url: String,
+    pub timeout: Duration,
+    pub health_endpoint: String,
+}
+
+impl Default for ServiceConfig {
+    fn default() -> Self {
+        Self {
+            base_url: "http://localhost:8000".to_string(),
+            timeout: Duration::from_secs(30),
+            health_endpoint: "/health".to_string(),
+        }
+    }
+}
 
 /// HTTP client for inter-service communication
 pub struct ServiceClient {
     client: Client,
+    service_registry: HashMap<String, ServiceConfig>,
 }
 
 impl ServiceClient {
     pub fn new() -> Self {
+        Self::with_default_services()
+    }
+
+    /// Create ServiceClient with default ai ecosystem services
+    pub fn with_default_services() -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
             .expect("Failed to create HTTP client");
         
-        Self { client }
+        let mut service_registry = HashMap::new();
+        
+        // Register default ai ecosystem services
+        service_registry.insert("ai.card".to_string(), ServiceConfig {
+            base_url: "http://localhost:8000".to_string(),
+            timeout: Duration::from_secs(30),
+            health_endpoint: "/health".to_string(),
+        });
+        
+        service_registry.insert("ai.log".to_string(), ServiceConfig {
+            base_url: "http://localhost:8002".to_string(),
+            timeout: Duration::from_secs(30), 
+            health_endpoint: "/health".to_string(),
+        });
+        
+        service_registry.insert("ai.bot".to_string(), ServiceConfig {
+            base_url: "http://localhost:8003".to_string(),
+            timeout: Duration::from_secs(30),
+            health_endpoint: "/health".to_string(),
+        });
+        
+        Self { client, service_registry }
+    }
+
+    /// Create ServiceClient with custom service registry
+    pub fn with_services(service_registry: HashMap<String, ServiceConfig>) -> Self {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .expect("Failed to create HTTP client");
+        
+        Self { client, service_registry }
+    }
+
+    /// Register a new service configuration
+    pub fn register_service(&mut self, name: String, config: ServiceConfig) {
+        self.service_registry.insert(name, config);
+    }
+
+    /// Get service configuration by name
+    pub fn get_service_config(&self, service: &str) -> Result<&ServiceConfig> {
+        self.service_registry.get(service)
+            .ok_or_else(|| anyhow!("Unknown service: {}", service))
+    }
+
+    /// Universal service method call
+    pub async fn call_service_method<T: Serialize>(
+        &self,
+        service: &str,
+        method: &str,
+        params: &T
+    ) -> Result<Value> {
+        let config = self.get_service_config(service)?;
+        let url = format!("{}/{}", config.base_url.trim_end_matches('/'), method.trim_start_matches('/'));
+        
+        self.post_request(&url, &serde_json::to_value(params)?).await
+    }
+
+    /// Universal service GET call
+    pub async fn call_service_get(&self, service: &str, endpoint: &str) -> Result<Value> {
+        let config = self.get_service_config(service)?;
+        let url = format!("{}/{}", config.base_url.trim_end_matches('/'), endpoint.trim_start_matches('/'));
+        
+        self.get_request(&url).await
     }
 
     /// Check if a service is available
@@ -68,18 +157,50 @@ impl ServiceClient {
 
     /// Get user's card collection from ai.card service
     pub async fn get_user_cards(&self, user_did: &str) -> Result<Value> {
-        let url = format!("http://localhost:8000/api/v1/cards/user/{}", user_did);
-        self.get_request(&url).await
+        let endpoint = format!("api/v1/cards/user/{}", user_did);
+        self.call_service_get("ai.card", &endpoint).await
     }
 
     /// Draw a card for user from ai.card service
     pub async fn draw_card(&self, user_did: &str, is_paid: bool) -> Result<Value> {
-        let payload = serde_json::json!({
+        let params = serde_json::json!({
             "user_did": user_did,
             "is_paid": is_paid
         });
 
-        self.post_request("http://localhost:8000/api/v1/cards/draw", &payload).await
+        self.call_service_method("ai.card", "api/v1/cards/draw", &params).await
+    }
+
+    /// Get card statistics from ai.card service
+    pub async fn get_card_stats(&self) -> Result<Value> {
+        self.call_service_get("ai.card", "api/v1/cards/gacha-stats").await
+    }
+
+    // MARK: - ai.log service methods
+
+    /// Create a new blog post
+    pub async fn create_blog_post<T: Serialize>(&self, params: &T) -> Result<Value> {
+        self.call_service_method("ai.log", "api/v1/posts", params).await
+    }
+
+    /// Get list of blog posts
+    pub async fn get_blog_posts(&self) -> Result<Value> {
+        self.call_service_get("ai.log", "api/v1/posts").await
+    }
+
+    /// Build the blog
+    pub async fn build_blog(&self) -> Result<Value> {
+        self.call_service_method("ai.log", "api/v1/build", &serde_json::json!({})).await
+    }
+
+    /// Translate document using ai.log service
+    pub async fn translate_document<T: Serialize>(&self, params: &T) -> Result<Value> {
+        self.call_service_method("ai.log", "api/v1/translate", params).await
+    }
+
+    /// Generate documentation using ai.log service
+    pub async fn generate_docs<T: Serialize>(&self, params: &T) -> Result<Value> {
+        self.call_service_method("ai.log", "api/v1/docs", params).await
     }
 }
 
