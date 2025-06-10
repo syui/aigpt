@@ -79,6 +79,11 @@ aigpt chat syui "質問内容" --provider ollama --model qwen3:latest
 
 # ドキュメント生成（ai.wiki統合）
 aigpt docs --wiki
+
+# トークン使用量・料金分析（Claude Code連携）
+aigpt tokens report --days 7      # 美しい日別レポート（要DuckDB）
+aigpt tokens cost --month today   # セッション別料金分析
+aigpt tokens summary --period week # 基本的な使用量サマリー
 ```
 
 ## 技術アーキテクチャ

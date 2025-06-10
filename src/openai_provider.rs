@@ -260,6 +260,7 @@ impl OpenAIProvider {
                         name: None,
                     }
                 ),
+                #[allow(deprecated)]
                 ChatCompletionRequestMessage::Assistant(
                     ChatCompletionRequestAssistantMessage {
                         content: message.content.clone(),
@@ -317,7 +318,8 @@ impl OpenAIProvider {
 
         match function_name.as_str() {
             "get_memories" => {
-                let limit = arguments.get("limit").and_then(|v| v.as_i64()).unwrap_or(5);
+
+                let _limit = arguments.get("limit").and_then(|v| v.as_i64()).unwrap_or(5);
                 // TODO: Implement actual MCP call
                 Ok(json!({"info": "記憶機能は実装中です"}))
             }

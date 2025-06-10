@@ -6,16 +6,10 @@ use crate::persona::Persona;
 use crate::transmission::TransmissionController;
 use crate::scheduler::AIScheduler;
 
-// Token commands enum (placeholder for tokens.rs)
-#[derive(Debug, clap::Subcommand)]
-pub enum TokenCommands {
-    Analyze { file: PathBuf },
-    Report { days: Option<u32> },
-    Cost { month: Option<String> },
-    Summary { period: Option<String>, claude_dir: Option<PathBuf>, details: bool, format: Option<String> },
-    Daily { days: Option<u32>, claude_dir: Option<PathBuf> },
-    Status { claude_dir: Option<PathBuf> },
-}
+// Re-export from commands module
+pub use commands::TokenCommands;
+
+mod commands;
 
 pub async fn handle_server(port: Option<u16>, data_dir: Option<PathBuf>) -> Result<()> {
     let port = port.unwrap_or(8080);
