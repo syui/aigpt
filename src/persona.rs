@@ -130,10 +130,17 @@ impl Persona {
                 .and_then(|p| p.system_prompt.clone());
             
             
-            let openai_provider = OpenAIProvider::with_system_prompt(api_key, Some(openai_model), system_prompt);
+            let openai_provider = OpenAIProvider::with_config(api_key, Some(openai_model), system_prompt, self.config.clone());
             
             // Use OpenAI with MCP tools support
-            openai_provider.chat_with_mcp(message.to_string(), user_id.to_string()).await?
+            let response = openai_provider.chat_with_mcp(message.to_string(), user_id.to_string()).await?;
+            
+            // Add AI response to memory as well
+            if let Some(memory_manager) = &mut self.memory_manager {
+                memory_manager.add_memory(user_id, &format!("AI: {}", response), 0.3)?;
+            }
+            
+            response
         } else {
             // Use existing AI provider (Ollama)
             let ai_config = self.config.get_ai_config(provider, model)?;

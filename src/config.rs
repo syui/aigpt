@@ -78,8 +78,9 @@ where
 impl Config {
     pub fn new(data_dir: Option<PathBuf>) -> Result<Self> {
         let data_dir = data_dir.unwrap_or_else(|| {
-            dirs::config_dir()
+            dirs::home_dir()
                 .unwrap_or_else(|| PathBuf::from("."))
+                .join(".config")
                 .join("syui")
                 .join("ai")
                 .join("gpt")
