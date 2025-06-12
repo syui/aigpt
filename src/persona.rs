@@ -124,7 +124,13 @@ impl Persona {
                 .map_err(|_| anyhow::anyhow!("OpenAI API key not found. Set OPENAI_API_KEY environment variable or add to config."))?;
             
             let openai_model = model.unwrap_or_else(|| "gpt-4".to_string());
-            let openai_provider = OpenAIProvider::new(api_key, Some(openai_model));
+            
+            // Get system prompt from config
+            let system_prompt = self.config.providers.get("openai")
+                .and_then(|p| p.system_prompt.clone());
+            
+            
+            let openai_provider = OpenAIProvider::with_system_prompt(api_key, Some(openai_model), system_prompt);
             
             // Use OpenAI with MCP tools support
             openai_provider.chat_with_mcp(message.to_string(), user_id.to_string()).await?

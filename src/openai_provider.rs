@@ -35,9 +35,17 @@ impl OpenAIProvider {
         }
     }
 
-    pub fn with_system_prompt(mut self, prompt: String) -> Self {
-        self.system_prompt = Some(prompt);
-        self
+    pub fn with_system_prompt(api_key: String, model: Option<String>, system_prompt: Option<String>) -> Self {
+        let config = async_openai::config::OpenAIConfig::new()
+            .with_api_key(api_key);
+        let client = Client::with_config(config);
+        
+        Self {
+            client,
+            model: model.unwrap_or_else(|| "gpt-4".to_string()),
+            service_client: ServiceClient::new(),
+            system_prompt,
+        }
     }
 
     /// Generate OpenAI tools from MCP endpoints (matching Python implementation)
@@ -48,7 +56,7 @@ impl OpenAIProvider {
                 r#type: ChatCompletionToolType::Function,
                 function: FunctionObject {
                     name: "get_memories".to_string(),
-                    description: Some("過去の会話記憶を取得します。「覚えている」「前回」「以前」などの質問で必ず使用してください".to_string()),
+                    description: Some("Get past conversation memories".to_string()),
                     parameters: Some(json!({
                         "type": "object",
                         "properties": {
@@ -65,7 +73,7 @@ impl OpenAIProvider {
                 r#type: ChatCompletionToolType::Function,
                 function: FunctionObject {
                     name: "search_memories".to_string(),
-                    description: Some("特定のトピックについて話した記憶を検索します。「プログラミングについて」「○○について話した」などの質問で使用してください".to_string()),
+                    description: Some("Search memories for specific topics or keywords".to_string()),
                     parameters: Some(json!({
                         "type": "object",
                         "properties": {
@@ -83,7 +91,7 @@ impl OpenAIProvider {
                 r#type: ChatCompletionToolType::Function,
                 function: FunctionObject {
                     name: "get_contextual_memories".to_string(),
-                    description: Some("クエリに関連する文脈的記憶を取得します".to_string()),
+                    description: Some("Get contextual memories related to a query".to_string()),
                     parameters: Some(json!({
                         "type": "object",
                         "properties": {
@@ -105,7 +113,7 @@ impl OpenAIProvider {
                 r#type: ChatCompletionToolType::Function,
                 function: FunctionObject {
                     name: "get_relationship".to_string(),
-                    description: Some("特定ユーザーとの関係性情報を取得します".to_string()),
+                    description: Some("Get relationship information with a specific user".to_string()),
                     parameters: Some(json!({
                         "type": "object",
                         "properties": {
@@ -123,7 +131,7 @@ impl OpenAIProvider {
                 r#type: ChatCompletionToolType::Function,
                 function: FunctionObject {
                     name: "card_get_user_cards".to_string(),
-                    description: Some("ユーザーが所有するカードの一覧を取得します".to_string()),
+                    description: Some("Get user's card collection".to_string()),
                     parameters: Some(json!({
                         "type": "object",
                         "properties": {
@@ -145,7 +153,7 @@ impl OpenAIProvider {
                 r#type: ChatCompletionToolType::Function,
                 function: FunctionObject {
                     name: "card_draw_card".to_string(),
-                    description: Some("ガチャを引いてカードを取得します".to_string()),
+                    description: Some("Draw a card from the gacha system".to_string()),
                     parameters: Some(json!({
                         "type": "object",
                         "properties": {
@@ -167,7 +175,7 @@ impl OpenAIProvider {
                 r#type: ChatCompletionToolType::Function,
                 function: FunctionObject {
                     name: "card_analyze_collection".to_string(),
-                    description: Some("ユーザーのカードコレクションを分析します".to_string()),
+                    description: Some("Analyze user's card collection".to_string()),
                     parameters: Some(json!({
                         "type": "object",
                         "properties": {
@@ -184,7 +192,7 @@ impl OpenAIProvider {
                 r#type: ChatCompletionToolType::Function,
                 function: FunctionObject {
                     name: "card_get_gacha_stats".to_string(),
-                    description: Some("ガチャの統計情報を取得します".to_string()),
+                    description: Some("Get gacha statistics".to_string()),
                     parameters: Some(json!({
                         "type": "object",
                         "properties": {}
@@ -200,9 +208,11 @@ impl OpenAIProvider {
     pub async fn chat_with_mcp(&self, prompt: String, user_id: String) -> Result<String> {
         let tools = self.get_mcp_tools();
         
+        
         let system_content = self.system_prompt.as_deref().unwrap_or(
-            "あなたは記憶システムと関係性データ、カードゲームシステムにアクセスできるAIです。\n\n【重要】以下の場合は必ずツールを使用してください：\n\n1. カード関連の質問:\n- 「カード」「コレクション」「ガチャ」「見せて」「持っている」「状況」「どんなカード」などのキーワードがある場合\n- card_get_user_cardsツールを使用してユーザーのカード情報を取得\n\n2. 記憶・関係性の質問:\n- 「覚えている」「前回」「以前」「について話した」「関係」などのキーワードがある場合\n- 適切なメモリツールを使用\n\n3. パラメータの設定:\n- didパラメータには現在会話しているユーザーのID（例：'syui'）を使用\n- ツールを積極的に使用して正確な情報を提供してください\n\nユーザーが何かを尋ねた時は、まず関連するツールがあるかを考え、適切なツールを使用してから回答してください。"
+            "You are an AI assistant with access to memory, relationship data, and card game systems. Use the available tools when appropriate to provide accurate and contextual responses."
         );
+        
 
         let request = CreateChatCompletionRequestArgs::default()
             .model(&self.model)
@@ -220,19 +230,21 @@ impl OpenAIProvider {
                     }
                 ),
             ])
-            .tools(tools)
+            .tools(tools.clone())
             .tool_choice(ChatCompletionToolChoiceOption::Auto)
             .max_tokens(2000u16)
             .temperature(0.7)
             .build()?;
 
+
         let response = self.client.chat().create(request).await?;
         let message = &response.choices[0].message;
+
 
         // Handle tool calls
         if let Some(tool_calls) = &message.tool_calls {
             if tool_calls.is_empty() {
-                println!("🔧 [OpenAI] No tools called");
+                println!("🔧 [OpenAI] No tools called (empty array)");
             } else {
                 println!("🔧 [OpenAI] {} tools called:", tool_calls.len());
                 for tc in tool_calls {
@@ -240,7 +252,7 @@ impl OpenAIProvider {
                 }
             }
         } else {
-            println!("🔧 [OpenAI] No tools called");
+            println!("🔧 [OpenAI] No tools called (no tool_calls field)");
         }
 
         // Process tool calls if any
@@ -318,26 +330,203 @@ impl OpenAIProvider {
 
         match function_name.as_str() {
             "get_memories" => {
-
-                let _limit = arguments.get("limit").and_then(|v| v.as_i64()).unwrap_or(5);
-                // TODO: Implement actual MCP call
-                Ok(json!({"info": "記憶機能は実装中です"}))
+                let limit = arguments.get("limit").and_then(|v| v.as_i64()).unwrap_or(5);
+                
+                // MCP server call to get memories
+                match self.service_client.get_request(&format!("http://localhost:8080/memories/{}", context_user_id)).await {
+                    Ok(result) => {
+                        // Extract the actual memory content from MCP response
+                        if let Some(content) = result.get("result").and_then(|r| r.get("content")) {
+                            if let Some(text_content) = content.get(0).and_then(|c| c.get("text")) {
+                                // Parse the text content as JSON (it's a serialized array)
+                                if let Ok(memories_array) = serde_json::from_str::<Vec<String>>(text_content.as_str().unwrap_or("[]")) {
+                                    let limited_memories: Vec<String> = memories_array.into_iter().take(limit as usize).collect();
+                                    Ok(json!({
+                                        "memories": limited_memories,
+                                        "count": limited_memories.len()
+                                    }))
+                                } else {
+                                    Ok(json!({
+                                        "memories": [text_content.as_str().unwrap_or("No memories found")],
+                                        "count": 1
+                                    }))
+                                }
+                            } else {
+                                Ok(json!({"memories": [], "count": 0, "info": "No memories available"}))
+                            }
+                        } else {
+                            Ok(json!({"memories": [], "count": 0, "info": "No response from memory service"}))
+                        }
+                    }
+                    Err(e) => {
+                        Ok(json!({"error": format!("Failed to retrieve memories: {}", e)}))
+                    }
+                }
             }
             "search_memories" => {
-                let _keywords = arguments.get("keywords").and_then(|v| v.as_array());
-                // TODO: Implement actual MCP call
-                Ok(json!({"info": "記憶検索機能は実装中です"}))
+                let keywords = arguments.get("keywords").and_then(|v| v.as_array()).unwrap_or(&vec![]).clone();
+                
+                // Convert keywords to strings
+                let keyword_strings: Vec<String> = keywords.iter()
+                    .filter_map(|k| k.as_str().map(|s| s.to_string()))
+                    .collect();
+                
+                if keyword_strings.is_empty() {
+                    return Ok(json!({"error": "No keywords provided for search"}));
+                }
+                
+                // MCP server call to search memories
+                let search_request = json!({
+                    "keywords": keyword_strings
+                });
+                
+                match self.service_client.post_request(
+                    &format!("http://localhost:8080/memories/{}/search", context_user_id),
+                    &search_request
+                ).await {
+                    Ok(result) => {
+                        // Extract the actual memory content from MCP response
+                        if let Some(content) = result.get("result").and_then(|r| r.get("content")) {
+                            if let Some(text_content) = content.get(0).and_then(|c| c.get("text")) {
+                                // Parse the search results
+                                if let Ok(search_result) = serde_json::from_str::<Vec<Value>>(text_content.as_str().unwrap_or("[]")) {
+                                    let memory_contents: Vec<String> = search_result.iter()
+                                        .filter_map(|item| item.get("content").and_then(|c| c.as_str().map(|s| s.to_string())))
+                                        .collect();
+                                    
+                                    Ok(json!({
+                                        "memories": memory_contents,
+                                        "count": memory_contents.len(),
+                                        "keywords": keyword_strings
+                                    }))
+                                } else {
+                                    Ok(json!({
+                                        "memories": [],
+                                        "count": 0,
+                                        "info": format!("No memories found for keywords: {}", keyword_strings.join(", "))
+                                    }))
+                                }
+                            } else {
+                                Ok(json!({"memories": [], "count": 0, "info": "No search results available"}))
+                            }
+                        } else {
+                            Ok(json!({"memories": [], "count": 0, "info": "No response from search service"}))
+                        }
+                    }
+                    Err(e) => {
+                        Ok(json!({"error": format!("Failed to search memories: {}", e)}))
+                    }
+                }
             }
             "get_contextual_memories" => {
-                let _query = arguments.get("query").and_then(|v| v.as_str()).unwrap_or("");
-                let _limit = arguments.get("limit").and_then(|v| v.as_i64()).unwrap_or(5);
-                // TODO: Implement actual MCP call
-                Ok(json!({"info": "文脈記憶機能は実装中です"}))
+                let query = arguments.get("query").and_then(|v| v.as_str()).unwrap_or("");
+                let limit = arguments.get("limit").and_then(|v| v.as_i64()).unwrap_or(5);
+                
+                if query.is_empty() {
+                    return Ok(json!({"error": "No query provided for contextual search"}));
+                }
+                
+                // MCP server call to get contextual memories
+                let contextual_request = json!({
+                    "query": query,
+                    "limit": limit
+                });
+                
+                match self.service_client.post_request(
+                    &format!("http://localhost:8080/memories/{}/contextual", context_user_id),
+                    &contextual_request
+                ).await {
+                    Ok(result) => {
+                        // Extract the actual memory content from MCP response
+                        if let Some(content) = result.get("result").and_then(|r| r.get("content")) {
+                            if let Some(text_content) = content.get(0).and_then(|c| c.get("text")) {
+                                // Parse contextual search results
+                                if text_content.as_str().unwrap_or("").contains("Found") {
+                                    // Extract memories from the formatted text response
+                                    let text = text_content.as_str().unwrap_or("");
+                                    if let Some(json_start) = text.find('[') {
+                                        if let Ok(memories_result) = serde_json::from_str::<Vec<Value>>(&text[json_start..]) {
+                                            let memory_contents: Vec<String> = memories_result.iter()
+                                                .filter_map(|item| item.get("content").and_then(|c| c.as_str().map(|s| s.to_string())))
+                                                .collect();
+                                            
+                                            Ok(json!({
+                                                "memories": memory_contents,
+                                                "count": memory_contents.len(),
+                                                "query": query
+                                            }))
+                                        } else {
+                                            Ok(json!({
+                                                "memories": [],
+                                                "count": 0,
+                                                "info": format!("No contextual memories found for: {}", query)
+                                            }))
+                                        }
+                                    } else {
+                                        Ok(json!({
+                                            "memories": [],
+                                            "count": 0,
+                                            "info": format!("No contextual memories found for: {}", query)
+                                        }))
+                                    }
+                                } else {
+                                    Ok(json!({
+                                        "memories": [],
+                                        "count": 0,
+                                        "info": format!("No contextual memories found for: {}", query)
+                                    }))
+                                }
+                            } else {
+                                Ok(json!({"memories": [], "count": 0, "info": "No contextual results available"}))
+                            }
+                        } else {
+                            Ok(json!({"memories": [], "count": 0, "info": "No response from contextual search service"}))
+                        }
+                    }
+                    Err(e) => {
+                        Ok(json!({"error": format!("Failed to get contextual memories: {}", e)}))
+                    }
+                }
             }
             "get_relationship" => {
-                let _user_id = arguments.get("user_id").and_then(|v| v.as_str()).unwrap_or(context_user_id);
-                // TODO: Implement actual MCP call
-                Ok(json!({"info": "関係性機能は実装中です"}))
+                let target_user_id = arguments.get("user_id").and_then(|v| v.as_str()).unwrap_or(context_user_id);
+                
+                // MCP server call to get relationship status
+                match self.service_client.get_request(&format!("http://localhost:8080/status/{}", target_user_id)).await {
+                    Ok(result) => {
+                        // Extract relationship information from MCP response
+                        if let Some(content) = result.get("result").and_then(|r| r.get("content")) {
+                            if let Some(text_content) = content.get(0).and_then(|c| c.get("text")) {
+                                // Parse the status response to extract relationship data
+                                if let Ok(status_data) = serde_json::from_str::<Value>(text_content.as_str().unwrap_or("{}")) {
+                                    if let Some(relationship) = status_data.get("relationship") {
+                                        Ok(json!({
+                                            "relationship": relationship,
+                                            "user_id": target_user_id
+                                        }))
+                                    } else {
+                                        Ok(json!({
+                                            "info": format!("No relationship found for user: {}", target_user_id),
+                                            "user_id": target_user_id
+                                        }))
+                                    }
+                                } else {
+                                    Ok(json!({
+                                        "info": format!("Could not parse relationship data for user: {}", target_user_id),
+                                        "user_id": target_user_id
+                                    }))
+                                }
+                            } else {
+                                Ok(json!({"info": "No relationship data available", "user_id": target_user_id}))
+                            }
+                        } else {
+                            Ok(json!({"info": "No response from relationship service", "user_id": target_user_id}))
+                        }
+                    }
+                    Err(e) => {
+                        Ok(json!({"error": format!("Failed to get relationship: {}", e)}))
+                    }
+                }
             }
             // ai.card tools
             "card_get_user_cards" => {

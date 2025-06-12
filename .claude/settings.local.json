@@ -52,7 +52,8 @@
       "Bash(cargo check:*)",
       "Bash(cargo run:*)",
       "Bash(cargo test:*)",
-      "Bash(diff:*)"
+      "Bash(diff:*)",
+      "Bash(cargo:*)"
     ],
     "deny": []
   }

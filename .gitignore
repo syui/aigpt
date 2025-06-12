@@ -6,3 +6,6 @@ mcp/scripts/__*
 data
 __pycache__
 conversations.json
+json/*.zip
+json/*/*
+*.log
