@@ -5,9 +5,18 @@ edition = "2021"
 authors = ["syui"]
 description = "Simple memory storage for Claude with MCP"
 
+
 [[bin]]
 name = "aigpt"
 path = "src/main.rs"
+
+[[bin]]
+name = "memory-mcp"
+path = "src/mcp_server.rs"
+
+[[bin]]
+name = "memory-mcp-extended"
+path = "extended/src/mcp_server.rs"
 
 [dependencies]
 # CLI and async
@@ -25,3 +34,15 @@ uuid = { version = "1.10", features = ["v4"] }
 # Error handling and utilities
 anyhow = "1.0"
 dirs = "5.0"
+
+# Extended features (optional)
+reqwest = { version = "0.11", features = ["json"], optional = true }
+scraper = { version = "0.18", optional = true }
+openai = { version = "1.1", optional = true }
+
+[features]
+default = []
+extended = ["semantic-search", "ai-analysis", "web-integration"]
+semantic-search = ["openai"]
+ai-analysis = ["openai"] 
+web-integration = ["reqwest", "scraper"]

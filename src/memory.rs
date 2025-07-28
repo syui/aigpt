@@ -148,6 +148,7 @@ impl MemoryManager {
         conversations
     }
 
+    #[allow(dead_code)]
     pub async fn import_chatgpt_conversations(&mut self, file_path: &PathBuf) -> Result<()> {
         let content = std::fs::read_to_string(file_path)
             .context("Failed to read conversations file")?;

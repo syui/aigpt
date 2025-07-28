@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "memory": {
+      "command": "cargo",
+      "args": ["run", "--release", "--bin", "memory-mcp"],
+      "cwd": "/Users/syui/ai/ai/gpt",
+      "env": {
+        "MEMORY_AUTO_EXECUTE": "true",
+        "MEMORY_AUTO_SAVE": "true", 
+        "MEMORY_AUTO_SEARCH": "true",
+        "TRIGGER_SENSITIVITY": "high",
+        "MEMORY_DB_PATH": "~/.claude/memory.db"
+      }
+    }
+  },
+  "memory": {
+    "auto_execute": true,
+    "auto_save": true,
+    "auto_search": true,
+    "trigger_sensitivity": "high",
+    "max_memories": 10000,
+    "search_limit": 50,
+    "trigger_words": {
+      "personal_info": ["名前", "誕生日", "住所", "年齢", "職業", "家族", "出身", "好き", "嫌い", "趣味"],
+      "decisions": ["決めた", "決定", "方針", "計画", "予定", "目標"],
+      "solutions": ["解決", "修正", "対処", "設定", "インストール", "手順"],
+      "learning": ["学んだ", "わかった", "発見", "理解", "気づき"],
+      "past_reference": ["前に", "以前", "昔", "過去", "先ほど", "さっき", "この間"],
+      "memory_recall": ["覚えている", "記録", "メモ", "保存", "履歴"],
+      "preferences": ["好み", "設定", "環境", "構成", "preferences"],
+      "vague_reference": ["あれ", "それ", "例のやつ"]
+    }
+  }
+}

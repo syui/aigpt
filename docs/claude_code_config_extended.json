@@ -1,0 +1,81 @@
+{
+  "mcpServers": {
+    "memory-extended": {
+      "command": "cargo",
+      "args": ["run", "--bin", "memory-mcp-extended", "--features", "extended"],
+      "cwd": "/Users/syui/ai/ai/gpt",
+      "env": {
+        "MEMORY_AUTO_EXECUTE": "true",
+        "MEMORY_AUTO_SAVE": "true",
+        "MEMORY_AUTO_SEARCH": "true", 
+        "TRIGGER_SENSITIVITY": "high",
+        "MEMORY_DB_PATH": "~/.claude/memory.db",
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+      }
+    }
+  },
+  "tools": {
+    "memory": {
+      "enabled": true,
+      "auto_execute": true,
+      "mode": "extended"
+    }
+  },
+  "workspace": {
+    "memory_integration": true,
+    "auto_save_on_file_change": true,
+    "auto_search_on_context_switch": true,
+    "ai_analysis_on_code_review": true,
+    "web_integration_for_docs": true
+  },
+  "memory": {
+    "mode": "extended",
+    "auto_execute": true,
+    "auto_save": true,
+    "auto_search": true,
+    "trigger_sensitivity": "high",
+    "max_memories": 10000,
+    "search_limit": 50,
+    "session_memory": true,
+    "cross_session_memory": true,
+    "features": {
+      "ai_analysis": true,
+      "semantic_search": true,
+      "web_integration": true,
+      "sentiment_analysis": true,
+      "pattern_recognition": true,
+      "code_analysis": true,
+      "documentation_import": true
+    },
+    "trigger_words": {
+      "personal_info": ["名前", "誕生日", "住所", "年齢", "職業", "家族", "出身", "好き", "嫌い", "趣味"],
+      "decisions": ["決めた", "決定", "方針", "計画", "予定", "目標"],
+      "solutions": ["解決", "修正", "対処", "設定", "インストール", "手順"],
+      "learning": ["学んだ", "わかった", "発見", "理解", "気づき"],
+      "past_reference": ["前に", "以前", "昔", "過去", "先ほど", "さっき", "この間"],
+      "memory_recall": ["覚えている", "記録", "メモ", "保存", "履歴"],
+      "preferences": ["好み", "設定", "環境", "構成", "preferences"],
+      "vague_reference": ["あれ", "それ", "例のやつ"],
+      "web_content": ["URL", "リンク", "サイト", "ページ", "記事", "ドキュメント"],
+      "analysis_request": ["分析", "パターン", "傾向", "インサイト", "統計", "レビュー"],
+      "code_related": ["関数", "クラス", "メソッド", "変数", "バグ", "リファクタリング"]
+    }
+  },
+  "hooks": {
+    "on_conversation_start": [
+      "search_memories --limit 10 --recent --semantic"
+    ],
+    "on_trigger_word": [
+      "auto_execute_memory_tools --with-analysis"
+    ],
+    "on_conversation_end": [
+      "save_important_memories --with-insights"
+    ],
+    "on_code_change": [
+      "analyze_code_patterns --auto-save"
+    ],
+    "on_web_reference": [
+      "import_webpage --auto-categorize"
+    ]
+  }
+}

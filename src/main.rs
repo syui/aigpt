@@ -2,8 +2,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-mod memory;
-mod mcp;
+pub mod memory;
+pub mod mcp;
 
 use memory::MemoryManager;
 use mcp::MCPServer;
