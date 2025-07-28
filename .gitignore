@@ -1,11 +1,23 @@
-**target
-**.lock
-output.json
-config/*.db
-mcp/scripts/__*
-data
-__pycache__
-conversations.json
-json/*.zip
-json/*/*
+# Rust
+target/
+Cargo.lock
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
 *.log
+json
+gpt
