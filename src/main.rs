@@ -6,7 +6,7 @@ pub mod memory;
 pub mod mcp;
 
 use memory::MemoryManager;
-use mcp::MCPServer;
+use mcp::BaseMCPServer;
 
 #[derive(Parser)]
 #[command(name = "aigpt")]
@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Server | Commands::Serve => {
-            let mut server = MCPServer::new().await?;
+            let mut server = BaseMCPServer::new().await?;
             server.run().await?;
         }
         Commands::Import { file } => {

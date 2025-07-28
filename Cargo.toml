@@ -12,11 +12,11 @@ path = "src/main.rs"
 
 [[bin]]
 name = "memory-mcp"
-path = "src/mcp_server.rs"
+path = "src/bin/mcp_server.rs"
 
 [[bin]]
 name = "memory-mcp-extended"
-path = "extended/src/mcp_server.rs"
+path = "src/bin/mcp_server_extended.rs"
 
 [dependencies]
 # CLI and async

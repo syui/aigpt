@@ -1,10 +1,7 @@
 use anyhow::Result;
 use std::env;
 
-// Re-use core modules from parent (these imports removed as they're unused)
-
-mod extended_mcp;
-use extended_mcp::ExtendedMCPServer;
+use aigpt::mcp::ExtendedMCPServer;
 
 #[tokio::main]
 async fn main() -> Result<()> {
