@@ -1,431 +1,94 @@
-# aigpt - AI Memory System with Psychological Priority
+# aigpt
 
-AI記憶装置（心理優先記憶システム）。**完全にローカルで動作**し、Claude Code と連携して、心理判定スコア付きのメモリ管理を実現します。
+Simple memory storage for Claude with MCP support.
 
-## 🌟 特徴
+**Layer 1: Pure Memory Storage** - A clean, SQLite-based memory system with ULID identifiers.
 
-- ✅ **完全ローカル**: 外部 API 不要、プライバシー保護
-- ✅ **ゼロコスト**: API 料金なし
-- ✅ **Claude Code 統合**: Claude 自身が解釈とスコアリング
-- ✅ **ゲーミフィケーション**: 心理テスト風の楽しい表示
-- ✅ **恋愛コンパニオン**: 育成要素付き
+## Features
 
-## コンセプト
+- 🗄️ **SQLite Storage**: Reliable database with ACID guarantees
+- 🔖 **ULID IDs**: Time-sortable, 26-character unique identifiers
+- 🔍 **Search**: Fast content-based search
+- 🛠️ **MCP Integration**: Works seamlessly with Claude Code
+- 🧪 **Well-tested**: Comprehensive test coverage
 
-従来の「会話 → 保存 → 検索」ではなく、「会話 → **Claude による解釈** → 保存 → 検索」を実現。
-Claude Code が記憶を解釈し、重要度を0.0-1.0のスコアで評価。優先度の高い記憶を保持し、低い記憶は自動的に削除されます。
+## Quick Start
 
-## 機能
+### Installation
 
-- **AI解釈付き記憶**: 元のコンテンツとAI解釈後のコンテンツを保存
-- **心理判定スコア**: 0.0-1.0のfloat値で重要度を評価
-- **優先順位管理**: スコアに基づく自動ソートとフィルタリング
-- **容量制限**: 最大100件（設定可能）、低スコアから自動削除
-- **メモリのCRUD操作**: メモリの作成、更新、削除、検索
-- **ChatGPT JSONインポート**: ChatGPTの会話履歴からメモリを抽出
-- **stdio MCP実装**: Claude Desktop/Codeとの簡潔な連携
-- **JSONファイル保存**: シンプルなファイルベースのデータ保存
-
-## インストール
-
-1. Rustをインストール（まだの場合）:
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-2. プロジェクトをビルド（依存関係が少なくシンプル！）:
-```bash
+# Build
 cargo build --release
-# API キー不要！完全にローカルで動作します
+
+# Install (optional)
+cp target/release/aigpt ~/.cargo/bin/
 ```
 
-3. バイナリをパスの通った場所にコピー（オプション）:
-```bash
-cp target/release/aigpt $HOME/.cargo/bin/
-```
-
-4. Claude Code/Desktopに追加
-
-```sh
-# Claude Codeの場合
-claude mcp add aigpt $HOME/.cargo/bin/aigpt server
-
-# または
-claude mcp add aigpt $HOME/.cargo/bin/aigpt serve
-```
-
-## 使用方法
-
-### ヘルプの表示
-```bash
-aigpt --help
-```
-
-### MCPサーバーとして起動
-```bash
-# MCPサーバー起動 (どちらでも可)
-aigpt server
-aigpt serve
-```
-
-### ChatGPT会話のインポート
-```bash
-# ChatGPT conversations.jsonをインポート
-aigpt import path/to/conversations.json
-```
-
-## Claude Desktop/Codeへの設定
-
-1. Claude Desktopの設定ファイルを開く:
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-   - Linux: `~/.config/Claude/claude_desktop_config.json`
-
-2. 以下の設定を追加:
-```json
-{
-  "mcpServers": {
-    "aigpt": {
-      "command": "/Users/syui/.cargo/bin/aigpt",
-      "args": ["server"]
-    }
-  }
-}
-```
-
-## 提供するMCPツール一覧
-
-### 基本ツール
-
-1. **create_memory** - 新しいメモリを作成（シンプル版）
-2. **update_memory** - 既存のメモリを更新
-3. **delete_memory** - メモリを削除
-4. **search_memories** - メモリを検索
-5. **list_conversations** - インポートされた会話を一覧表示
-
-### AI機能ツール（重要！）
-
-6. **create_memory_with_ai** - AI解釈と心理判定付きでメモリを作成 🎮
-   - 元のコンテンツをAIが解釈
-   - 重要度を0.0-1.0のスコアで自動評価
-   - ユーザーコンテキストを考慮可能
-   - **ゲーム風の診断結果を表示！**（占い・心理テスト風）
-
-7. **list_memories_by_priority** - 優先順位順にメモリをリスト 🏆
-   - 高スコアから順に表示
-   - min_scoreで閾値フィルタリング可能
-   - limit で件数制限可能
-   - **ランキング形式で表示！**
-
-8. **daily_challenge** - 今日のデイリーチャレンジを取得 📅
-   - 日替わりのお題を取得
-   - ボーナスXPが獲得可能
-
-### 恋愛コンパニオン機能 💕（NEW!）
-
-9. **create_companion** - AIコンパニオンを作成
-   - 名前と性格を選択
-   - 5つの性格タイプから選択可能
-
-10. **companion_react** - コンパニオンの反応を見る
-    - あなたの記憶にコンパニオンが反応
-    - 好感度・XP・信頼度が上昇
-    - スペシャルイベント発生あり
-
-11. **companion_profile** - コンパニオンのプロフィール表示
-    - ステータス確認
-    - 今日のひとこと
-
-## ツールの使用例
-
-Claude Desktop/Codeで以下のように使用します：
-
-### 基本的なメモリ作成
-```
-MCPツールを使って「今日は良い天気です」というメモリーを作成してください
-```
-
-### AI解釈付きメモリ作成（推奨）🎮
-```
-create_memory_with_ai ツールを使って「新しいAI記憶システムのアイデアを思いついた」というメモリーを作成してください。
-ユーザーコンテキスト: 「AI開発者、創造的思考を重視」
-```
-
-**ゲーム風の結果表示：**
-```
-╔══════════════════════════════════════════════════════════════╗
-║                    🎲 メモリースコア判定                    ║
-╚══════════════════════════════════════════════════════════════╝
-
-⚡ 分析完了！ あなたの思考が記録されました
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 総合スコア
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   🟣 EPIC 85点
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🎯 詳細分析
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💓 感情的インパクト:  [████████░░] 80%
-🔗 ユーザー関連性:    [██████████] 100%
-✨ 新規性・独自性:    [█████████░] 90%
-⚙️  実用性:           [████████░░] 80%
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🎊 あなたのタイプ
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💡 【革新者】
-
-創造的で実用的なアイデアを生み出す。常に新しい可能性を探求し、
-それを現実のものにする力を持つ。
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🏆 報酬
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💎 XP獲得: +850 XP
-🎁 レア度: 🟣 EPIC
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📤 この結果をシェアしよう！
-#aigpt #メモリースコア #革新者
-```
-
-**シェア用テキストも自動生成：**
-```
-🎲 AIメモリースコア診断結果
-
-🟣 EPIC 85点
-💡 【革新者】
-
-新しいAI記憶システムのアイデアを思いついた
-
-#aigpt #メモリースコア #AI診断
-```
-
-### 優先順位でメモリをリスト 🏆
-```
-list_memories_by_priority ツールで、スコア0.7以上の重要なメモリを10件表示してください
-```
-
-**ランキング形式で表示：**
-```
-╔══════════════════════════════════════════════════════════════╗
-║                    🏆 メモリーランキング TOP 10                    ║
-╚══════════════════════════════════════════════════════════════╝
-
-🥇 1位 🟡 LEGENDARY 95点 - 心理優先記憶装置の設計
-🥈 2位 🟣 EPIC 88点 - AIとのやり取りをコンテンツ化
-🥉 3位 🟣 EPIC 85点 - ゲーム化の構想
-　 4位 🔵 RARE 75点 - SNSの本質について
-　 5位 🔵 RARE 72点 - AI OSの可能性
-...
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-### 今日のデイリーチャレンジ 📅
-```
-daily_challenge ツールで今日のお題を確認
-```
-
-**表示例：**
-```
-╔══════════════════════════════════════════════════════════════╗
-║                  📅 今日のチャレンジ                         ║
-╚══════════════════════════════════════════════════════════════╝
-
-✨ 今日学んだことを記録しよう
-
-🎁 報酬: +200 XP
-💎 完了すると特別なバッジが獲得できます！
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-### 恋愛コンパニオン 💕（NEW!）
-
-#### 1. コンパニオン作成
-```
-create_companion ツールで、名前「エミリー」、性格「energetic」のコンパニオンを作成
-```
-
-**性格タイプ:**
-- `energetic` ⚡ - 元気で冒険好き（革新者と相性◎）
-- `intellectual` 📚 - 知的で思慮深い（哲学者と相性◎）
-- `practical` 🎯 - 現実的で頼れる（実務家と相性◎）
-- `dreamy` 🌙 - 夢見がちでロマンチック（夢想家と相性◎）
-- `balanced` ⚖️ - バランス型（分析家と相性◎）
-
-**表示例：**
-```
-╔══════════════════════════════════════════════════════════════╗
-║                💕 エミリー のプロフィール                     ║
-╚══════════════════════════════════════════════════════════════╝
-
-⚡ 性格: 元気で冒険好き
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 ステータス
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏆 関係レベル: Lv.1
-💕 好感度: 🤍🤍🤍🤍🤍🤍🤍🤍🤍🤍 0%
-🤝 信頼度: 0 / 100
-💎 総XP: 0 XP
-
-💬 今日のひとこと:
-「おはよう！今日は何か面白いことある？」
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-#### 2. コンパニオンの反応
-```
-create_memory_with_ai で高スコアの記憶を作成
-  ↓
-companion_react でコンパニオンに見せる
-```
-
-**表示例（EPIC記憶への反応）:**
-```
-╔══════════════════════════════════════════════════════════════╗
-║                💕 エミリー の反応                              ║
-╚══════════════════════════════════════════════════════════════╝
-
-⚡ エミリー:
-「おお、「新しいAI記憶システムのアイデア」って面白いね！
-あなたのそういうところ、好きだな。」
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💕 好感度: ❤️❤️🤍🤍🤍🤍🤍🤍🤍🤍 15% (+8.5%)
-💎 XP獲得: +850 XP
-🏆 レベル: Lv.1
-🤝 信頼度: 5 / 100
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-#### 3. スペシャルイベント発生！
-```
-好感度が100%に達すると...
-
-💕 特別なイベント発生！
-
-エミリー:「ねえ...あのね。
-　　　いつも一緒にいてくれてありがとう。
-　　　あなたのこと、すごく大切に思ってるの。
-　　　これからも、ずっと一緒にいてね？」
-
-🎊 エミリー の好感度がMAXになりました！
-```
-
-#### 4. 相性システム
-```
-あなたのタイプ × コンパニオンの性格 = 相性ボーナス
-
-例:
-💡【革新者】 × ⚡ 元気で冒険好き = 相性95%！
-→ 好感度上昇1.95倍
-
-🧠【哲学者】 × 📚 知的で思慮深い = 相性95%！
-→ 深い会話で絆が深まる
-```
-
-### メモリの検索
-```
-MCPツールを使って「天気」に関するメモリーを検索してください
-```
-
-### 会話一覧の表示
-```
-MCPツールを使ってインポートした会話の一覧を表示してください
-```
-
-## データ保存
-
-- デフォルトパス: `~/.config/syui/ai/gpt/memory.json`
-- JSONファイルでデータを保存
-- 自動的にディレクトリとファイルを作成
-
-### データ構造
-
-```json
-{
-  "memories": {
-    "uuid": {
-      "id": "uuid",
-      "content": "元のメモリー内容",
-      "interpreted_content": "AI解釈後のメモリー内容",
-      "priority_score": 0.75,
-      "user_context": "ユーザー固有のコンテキスト（オプション）",
-      "created_at": "2024-01-01T00:00:00Z",
-      "updated_at": "2024-01-01T00:00:00Z"
-    }
-  },
-  "conversations": {
-    "conversation_id": {
-      "id": "conversation_id",
-      "title": "会話のタイトル",
-      "created_at": "2024-01-01T00:00:00Z",
-      "message_count": 10
-    }
-  }
-}
-```
-
-### 心理判定スコアについて
-
-0.0-1.0のfloat値で重要度を表現：
-- **0.0-0.25**: 低優先度（忘れられやすい）
-- **0.25-0.5**: 中優先度
-- **0.5-0.75**: 高優先度
-- **0.75-1.0**: 最高優先度（重要な記憶）
-
-評価基準：
-- 感情的インパクト (0.0-0.25)
-- ユーザーとの関連性 (0.0-0.25)
-- 新規性・独自性 (0.0-0.25)
-- 実用性 (0.0-0.25)
-
-## 開発
+### CLI Usage
 
 ```bash
-# 開発モードで実行
-cargo run -- server
+# Create a memory
+aigpt create "Remember this information"
 
-# ChatGPTインポートのテスト
-cargo run -- import json/conversations.json
+# List all memories
+aigpt list
 
-# テストの実行
+# Search memories
+aigpt search "keyword"
+
+# Show statistics
+aigpt stats
+```
+
+### MCP Integration with Claude Code
+
+```bash
+# Add to Claude Code
+claude mcp add aigpt /path/to/aigpt/target/release/aigpt server
+```
+
+Then use in Claude Code:
+- "Remember that tomorrow will be sunny"
+- "Search for weather information"
+- "Show all my memories"
+
+## Storage Location
+
+Memories are stored in: `~/.config/syui/ai/gpt/memory.db`
+
+## Architecture
+
+This is **Layer 1** of a planned multi-layer system:
+
+- **Layer 1** (Current): Pure memory storage
+- **Layer 2** (Planned): AI interpretation with priority scoring
+- **Layer 3** (Planned): User evaluation and diagnosis
+- **Layer 4** (Planned): Game systems and companion features
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
+
+## Documentation
+
+- [Layer 1 Details](docs/LAYER1.md) - Technical details of current implementation
+- [Architecture](docs/ARCHITECTURE.md) - Multi-layer system design
+
+## Development
+
+```bash
+# Run tests
 cargo test
 
-# フォーマット
-cargo fmt
+# Build for release
+cargo build --release
 
-# Lintチェック
-cargo clippy
+# Run with verbose logging
+RUST_LOG=debug aigpt server
 ```
 
-## トラブルシューティング
-
-### MCPサーバーが起動しない
-```bash
-# バイナリが存在するか確認
-ls -la ~/.cargo/bin/aigpt
-
-# 手動でテスト
-echo '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}' | aigpt server
-```
-
-### Claude Desktopでツールが見つからない
-1. Claude Desktopを完全に再起動
-2. 設定ファイルのパスが正しいか確認
-3. ログファイルを確認: `~/Library/Logs/Claude/mcp-server-aigpt.log`
-
-### インポートが失敗する
-```bash
-# JSONファイルの形式を確認
-head -100 conversations.json | jq '.[0] | keys'
-```
-
-## ライセンス
+## License
 
 MIT
+
+## Author
+
+syui
