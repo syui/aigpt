@@ -38,11 +38,8 @@ dirs = "5.0"
 # Extended features (optional)
 reqwest = { version = "0.11", features = ["json"], optional = true }
 scraper = { version = "0.18", optional = true }
-openai = { version = "1.1", optional = true }
 
 [features]
 default = []
-extended = ["semantic-search", "ai-analysis", "web-integration"]
-semantic-search = ["openai"]
-ai-analysis = ["openai"] 
+extended = ["web-integration"]
 web-integration = ["reqwest", "scraper"]

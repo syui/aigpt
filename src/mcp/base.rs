@@ -166,13 +166,23 @@ impl BaseMCPServer {
             }),
             json!({
                 "name": "create_memory_with_ai",
-                "description": "Create a new memory with AI interpretation and priority scoring (with game-style result!)",
+                "description": "Create a memory with psychological priority scoring! \n\nIMPORTANT: You (Claude) should:\n1. Interpret the user's content and extract deeper meaning\n2. Calculate priority_score (0.0-1.0) based on these criteria:\n   - Emotional impact (0.0-0.25)\n   - User relevance (0.0-0.25)\n   - Novelty/uniqueness (0.0-0.25)\n   - Practical utility (0.0-0.25)\n3. Provide the interpreted content and score to this tool\n4. The system will show a game-style result with rarity, type, and XP!",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "content": {
                             "type": "string",
-                            "description": "Content of the memory"
+                            "description": "Original user content"
+                        },
+                        "interpreted_content": {
+                            "type": "string",
+                            "description": "Your interpretation of the content (extract deeper meaning)"
+                        },
+                        "priority_score": {
+                            "type": "number",
+                            "description": "Priority score 0.0-1.0 (sum of 4 criteria, each 0.0-0.25)",
+                            "minimum": 0.0,
+                            "maximum": 1.0
                         },
                         "user_context": {
                             "type": "string",
@@ -183,7 +193,7 @@ impl BaseMCPServer {
                             "description": "Show game-style result (default: true)"
                         }
                     },
-                    "required": ["content"]
+                    "required": ["content", "interpreted_content", "priority_score"]
                 }
             }),
             json!({
@@ -379,10 +389,18 @@ impl BaseMCPServer {
     // AI解釈付きメモリ作成
     async fn tool_create_memory_with_ai(&mut self, arguments: &Value) -> Value {
         let content = arguments["content"].as_str().unwrap_or("");
+        let interpreted_content = arguments["interpreted_content"].as_str().unwrap_or(content);
+        let priority_score = arguments["priority_score"].as_f64().unwrap_or(0.5) as f32;
         let user_context = arguments["user_context"].as_str();
         let game_mode = arguments["game_mode"].as_bool().unwrap_or(true);
 
-        match self.memory_manager.create_memory_with_ai(content, user_context).await {
+        // Claude Code から受け取った解釈とスコアでメモリを作成
+        match self.memory_manager.create_memory_with_interpretation(
+            content,
+            interpreted_content,
+            priority_score,
+            user_context
+        ) {
             Ok(id) => {
                 // 作成したメモリを取得して詳細情報を返す
                 if let Some(memory) = self.memory_manager.get_memory(&id) {
@@ -408,13 +426,13 @@ impl BaseMCPServer {
                         },
                         "game_result": result,
                         "shareable_text": shareable,
-                        "message": "Memory created with AI interpretation and priority scoring"
+                        "message": "Memory created with Claude Code's interpretation and priority scoring!"
                     })
                 } else {
                     json!({
                         "success": true,
                         "id": id,
-                        "message": "Memory created with AI interpretation"
+                        "message": "Memory created"
                     })
                 }
             }

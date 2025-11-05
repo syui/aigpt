@@ -5,11 +5,8 @@
 ### ステップ1: MCPサーバーを起動
 
 ```bash
-# 基本版（AI機能なし）
+# API キー不要！完全にローカルで動作
 ./target/debug/aigpt server
-
-# AI機能有効版（OpenAI APIキーが必要）
-OPENAI_API_KEY=your_key ./target/debug/aigpt server
 ```
 
 ### ステップ2: Claude Desktop/Codeに設定

@@ -128,7 +128,7 @@ impl MemoryManager {
         Ok(id)
     }
 
-    /// AI解釈と心理判定を使った記憶作成
+    /// AI解釈と心理判定を使った記憶作成（後方互換性のため残す）
     pub async fn create_memory_with_ai(
         &mut self,
         content: &str,
@@ -148,6 +148,37 @@ impl MemoryManager {
             content: content.to_string(),
             interpreted_content,
             priority_score,
+            user_context: user_context.map(|s| s.to_string()),
+            created_at: now,
+            updated_at: now,
+        };
+
+        self.memories.insert(id.clone(), memory);
+
+        // 容量制限チェック
+        self.prune_memories_if_needed()?;
+
+        self.save_data()?;
+
+        Ok(id)
+    }
+
+    /// Claude Code から解釈とスコアを受け取ってメモリを作成
+    pub fn create_memory_with_interpretation(
+        &mut self,
+        content: &str,
+        interpreted_content: &str,
+        priority_score: f32,
+        user_context: Option<&str>,
+    ) -> Result<String> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+
+        let memory = Memory {
+            id: id.clone(),
+            content: content.to_string(),
+            interpreted_content: interpreted_content.to_string(),
+            priority_score: priority_score.max(0.0).min(1.0), // 0.0-1.0 に制限
             user_context: user_context.map(|s| s.to_string()),
             created_at: now,
             updated_at: now,
