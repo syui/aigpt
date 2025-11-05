@@ -10,11 +10,22 @@ use crate::ai_interpreter::AIInterpreter;
 pub struct Memory {
     pub id: String,
     pub content: String,
+    #[serde(default = "default_interpreted_content")]
     pub interpreted_content: String,      // AI解釈後のコンテンツ
+    #[serde(default = "default_priority_score")]
     pub priority_score: f32,               // 心理判定スコア (0.0-1.0)
+    #[serde(default)]
     pub user_context: Option<String>,      // ユーザー固有性
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+fn default_interpreted_content() -> String {
+    String::new()
+}
+
+fn default_priority_score() -> f32 {
+    0.5
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
