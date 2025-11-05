@@ -88,13 +88,37 @@ impl BaseMCPServer {
         vec![
             json!({
                 "name": "create_memory",
-                "description": "Create a new memory entry",
+                "description": "Create a new memory entry (Layer 1: simple storage)",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "content": {
                             "type": "string",
                             "description": "Content of the memory"
+                        }
+                    },
+                    "required": ["content"]
+                }
+            }),
+            json!({
+                "name": "create_ai_memory",
+                "description": "Create a memory with AI interpretation and priority score (Layer 2)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "content": {
+                            "type": "string",
+                            "description": "Original content of the memory"
+                        },
+                        "ai_interpretation": {
+                            "type": "string",
+                            "description": "AI's creative interpretation of the content (optional)"
+                        },
+                        "priority_score": {
+                            "type": "number",
+                            "description": "Priority score from 0.0 (low) to 1.0 (high) (optional)",
+                            "minimum": 0.0,
+                            "maximum": 1.0
                         }
                     },
                     "required": ["content"]
@@ -192,6 +216,7 @@ impl BaseMCPServer {
     fn execute_tool(&self, tool_name: &str, arguments: &Value) -> Value {
         match tool_name {
             "create_memory" => self.tool_create_memory(arguments),
+            "create_ai_memory" => self.tool_create_ai_memory(arguments),
             "get_memory" => self.tool_get_memory(arguments),
             "search_memories" => self.tool_search_memories(arguments),
             "list_memories" => self.tool_list_memories(),
@@ -221,6 +246,30 @@ impl BaseMCPServer {
         }
     }
 
+    fn tool_create_ai_memory(&self, arguments: &Value) -> Value {
+        let content = arguments["content"].as_str().unwrap_or("");
+        let ai_interpretation = arguments["ai_interpretation"]
+            .as_str()
+            .map(|s| s.to_string());
+        let priority_score = arguments["priority_score"].as_f64().map(|f| f as f32);
+
+        let memory = Memory::new_ai(content.to_string(), ai_interpretation, priority_score);
+
+        match self.store.create(&memory) {
+            Ok(()) => json!({
+                "success": true,
+                "id": memory.id,
+                "message": "AI memory created successfully",
+                "has_interpretation": memory.ai_interpretation.is_some(),
+                "has_score": memory.priority_score.is_some()
+            }),
+            Err(e) => json!({
+                "success": false,
+                "error": e.to_string()
+            }),
+        }
+    }
+
     fn tool_get_memory(&self, arguments: &Value) -> Value {
         let id = arguments["id"].as_str().unwrap_or("");
 
@@ -230,6 +279,8 @@ impl BaseMCPServer {
                 "memory": {
                     "id": memory.id,
                     "content": memory.content,
+                    "ai_interpretation": memory.ai_interpretation,
+                    "priority_score": memory.priority_score,
                     "created_at": memory.created_at,
                     "updated_at": memory.updated_at
                 }
@@ -250,6 +301,8 @@ impl BaseMCPServer {
                 "memories": memories.into_iter().map(|m| json!({
                     "id": m.id,
                     "content": m.content,
+                    "ai_interpretation": m.ai_interpretation,
+                    "priority_score": m.priority_score,
                     "created_at": m.created_at,
                     "updated_at": m.updated_at
                 })).collect::<Vec<_>>()
@@ -268,6 +321,8 @@ impl BaseMCPServer {
                 "memories": memories.into_iter().map(|m| json!({
                     "id": m.id,
                     "content": m.content,
+                    "ai_interpretation": m.ai_interpretation,
+                    "priority_score": m.priority_score,
                     "created_at": m.created_at,
                     "updated_at": m.updated_at
                 })).collect::<Vec<_>>()

@@ -25,11 +25,25 @@ impl MemoryStore {
             "CREATE TABLE IF NOT EXISTS memories (
                 id TEXT PRIMARY KEY,
                 content TEXT NOT NULL,
+                ai_interpretation TEXT,
+                priority_score REAL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )",
             [],
         )?;
+
+        // Migrate existing tables (add columns if they don't exist)
+        // SQLite doesn't have "IF NOT EXISTS" for columns, so we check first
+        let has_ai_interpretation: bool = conn
+            .prepare("SELECT COUNT(*) FROM pragma_table_info('memories') WHERE name='ai_interpretation'")?
+            .query_row([], |row| row.get(0))
+            .map(|count: i32| count > 0)?;
+
+        if !has_ai_interpretation {
+            conn.execute("ALTER TABLE memories ADD COLUMN ai_interpretation TEXT", [])?;
+            conn.execute("ALTER TABLE memories ADD COLUMN priority_score REAL", [])?;
+        }
 
         // Create indexes for better query performance
         conn.execute(
@@ -39,6 +53,11 @@ impl MemoryStore {
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_updated_at ON memories(updated_at)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_priority_score ON memories(priority_score)",
             [],
         )?;
 
@@ -60,10 +79,13 @@ impl MemoryStore {
     /// Insert a new memory
     pub fn create(&self, memory: &Memory) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO memories (id, content, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO memories (id, content, ai_interpretation, priority_score, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 &memory.id,
                 &memory.content,
+                &memory.ai_interpretation,
+                &memory.priority_score,
                 memory.created_at.to_rfc3339(),
                 memory.updated_at.to_rfc3339(),
             ],
@@ -75,26 +97,29 @@ impl MemoryStore {
     pub fn get(&self, id: &str) -> Result<Memory> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, content, created_at, updated_at FROM memories WHERE id = ?1")?;
+            .prepare("SELECT id, content, ai_interpretation, priority_score, created_at, updated_at
+                      FROM memories WHERE id = ?1")?;
 
         let memory = stmt.query_row(params![id], |row| {
-            let created_at: String = row.get(2)?;
-            let updated_at: String = row.get(3)?;
+            let created_at: String = row.get(4)?;
+            let updated_at: String = row.get(5)?;
 
             Ok(Memory {
                 id: row.get(0)?,
                 content: row.get(1)?,
+                ai_interpretation: row.get(2)?,
+                priority_score: row.get(3)?,
                 created_at: DateTime::parse_from_rfc3339(&created_at)
                     .map(|dt| dt.with_timezone(&Utc))
                     .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                        2,
+                        4,
                         rusqlite::types::Type::Text,
                         Box::new(e),
                     ))?,
                 updated_at: DateTime::parse_from_rfc3339(&updated_at)
                     .map(|dt| dt.with_timezone(&Utc))
                     .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                        3,
+                        5,
                         rusqlite::types::Type::Text,
                         Box::new(e),
                     ))?,
@@ -107,9 +132,12 @@ impl MemoryStore {
     /// Update an existing memory
     pub fn update(&self, memory: &Memory) -> Result<()> {
         let rows_affected = self.conn.execute(
-            "UPDATE memories SET content = ?1, updated_at = ?2 WHERE id = ?3",
+            "UPDATE memories SET content = ?1, ai_interpretation = ?2, priority_score = ?3, updated_at = ?4
+             WHERE id = ?5",
             params![
                 &memory.content,
+                &memory.ai_interpretation,
+                &memory.priority_score,
                 memory.updated_at.to_rfc3339(),
                 &memory.id,
             ],
@@ -138,28 +166,31 @@ impl MemoryStore {
     /// List all memories, ordered by creation time (newest first)
     pub fn list(&self) -> Result<Vec<Memory>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, content, created_at, updated_at FROM memories ORDER BY created_at DESC",
+            "SELECT id, content, ai_interpretation, priority_score, created_at, updated_at
+             FROM memories ORDER BY created_at DESC",
         )?;
 
         let memories = stmt
             .query_map([], |row| {
-                let created_at: String = row.get(2)?;
-                let updated_at: String = row.get(3)?;
+                let created_at: String = row.get(4)?;
+                let updated_at: String = row.get(5)?;
 
                 Ok(Memory {
                     id: row.get(0)?,
                     content: row.get(1)?,
+                    ai_interpretation: row.get(2)?,
+                    priority_score: row.get(3)?,
                     created_at: DateTime::parse_from_rfc3339(&created_at)
                         .map(|dt| dt.with_timezone(&Utc))
                         .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                            2,
+                            4,
                             rusqlite::types::Type::Text,
                             Box::new(e),
                         ))?,
                     updated_at: DateTime::parse_from_rfc3339(&updated_at)
                         .map(|dt| dt.with_timezone(&Utc))
                         .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                            3,
+                            5,
                             rusqlite::types::Type::Text,
                             Box::new(e),
                         ))?,
@@ -170,34 +201,37 @@ impl MemoryStore {
         Ok(memories)
     }
 
-    /// Search memories by content (case-insensitive)
+    /// Search memories by content or AI interpretation (case-insensitive)
     pub fn search(&self, query: &str) -> Result<Vec<Memory>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, content, created_at, updated_at FROM memories
-             WHERE content LIKE ?1
+            "SELECT id, content, ai_interpretation, priority_score, created_at, updated_at
+             FROM memories
+             WHERE content LIKE ?1 OR ai_interpretation LIKE ?1
              ORDER BY created_at DESC",
         )?;
 
         let search_pattern = format!("%{}%", query);
         let memories = stmt
             .query_map(params![search_pattern], |row| {
-                let created_at: String = row.get(2)?;
-                let updated_at: String = row.get(3)?;
+                let created_at: String = row.get(4)?;
+                let updated_at: String = row.get(5)?;
 
                 Ok(Memory {
                     id: row.get(0)?,
                     content: row.get(1)?,
+                    ai_interpretation: row.get(2)?,
+                    priority_score: row.get(3)?,
                     created_at: DateTime::parse_from_rfc3339(&created_at)
                         .map(|dt| dt.with_timezone(&Utc))
                         .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                            2,
+                            4,
                             rusqlite::types::Type::Text,
                             Box::new(e),
                         ))?,
                     updated_at: DateTime::parse_from_rfc3339(&updated_at)
                         .map(|dt| dt.with_timezone(&Utc))
                         .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                            3,
+                            5,
                             rusqlite::types::Type::Text,
                             Box::new(e),
                         ))?,
