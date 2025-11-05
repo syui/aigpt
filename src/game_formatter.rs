@@ -64,6 +64,17 @@ pub enum DiagnosisType {
 }
 
 impl DiagnosisType {
+    /// スコアから診断タイプを推定（公開用）
+    pub fn from_memory(memory: &crate::memory::Memory) -> Self {
+        // スコア内訳を推定
+        let emotional = (memory.priority_score * 0.25).min(0.25);
+        let relevance = (memory.priority_score * 0.25).min(0.25);
+        let novelty = (memory.priority_score * 0.25).min(0.25);
+        let utility = memory.priority_score - emotional - relevance - novelty;
+
+        Self::from_score_breakdown(emotional, relevance, novelty, utility)
+    }
+
     pub fn from_score_breakdown(
         emotional: f32,
         relevance: f32,

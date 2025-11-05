@@ -3,16 +3,22 @@ use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 
 use crate::memory::MemoryManager;
-use crate::game_formatter::GameFormatter;
+use crate::game_formatter::{GameFormatter, DiagnosisType};
+use crate::companion::{Companion, CompanionPersonality, CompanionFormatter};
+use std::sync::{Arc, Mutex};
 
 pub struct BaseMCPServer {
     pub memory_manager: MemoryManager,
+    pub companion: Option<Companion>,  // 恋愛コンパニオン（オプション）
 }
 
 impl BaseMCPServer {
     pub async fn new() -> Result<Self> {
         let memory_manager = MemoryManager::new().await?;
-        Ok(BaseMCPServer { memory_manager })
+        Ok(BaseMCPServer {
+            memory_manager,
+            companion: None,  // 初期状態はコンパニオンなし
+        })
     }
 
     pub async fn run(&mut self) -> Result<()> {
@@ -210,6 +216,47 @@ impl BaseMCPServer {
                     "type": "object",
                     "properties": {}
                 }
+            }),
+            json!({
+                "name": "create_companion",
+                "description": "Create your AI companion - Choose name and personality!",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Companion's name"
+                        },
+                        "personality": {
+                            "type": "string",
+                            "enum": ["energetic", "intellectual", "practical", "dreamy", "balanced"],
+                            "description": "Companion's personality type"
+                        }
+                    },
+                    "required": ["name", "personality"]
+                }
+            }),
+            json!({
+                "name": "companion_react",
+                "description": "Show your companion's reaction to your latest memory",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "memory_id": {
+                            "type": "string",
+                            "description": "Memory ID to react to"
+                        }
+                    },
+                    "required": ["memory_id"]
+                }
+            }),
+            json!({
+                "name": "companion_profile",
+                "description": "View your companion's profile and stats",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
             })
         ]
     }
@@ -240,6 +287,9 @@ impl BaseMCPServer {
             "create_memory_with_ai" => self.tool_create_memory_with_ai(arguments).await,
             "list_memories_by_priority" => self.tool_list_memories_by_priority(arguments),
             "daily_challenge" => self.tool_daily_challenge(),
+            "create_companion" => self.tool_create_companion(arguments),
+            "companion_react" => self.tool_companion_react(arguments),
+            "companion_profile" => self.tool_companion_profile(),
             "search_memories" => self.tool_search_memories(arguments),
             "update_memory" => self.tool_update_memory(arguments),
             "delete_memory" => self.tool_delete_memory(arguments),
@@ -422,6 +472,80 @@ impl BaseMCPServer {
             "challenge_display": challenge_display,
             "message": "Complete today's challenge to earn bonus XP!"
         })
+    }
+
+    // コンパニオン作成
+    fn tool_create_companion(&mut self, arguments: &Value) -> Value {
+        let name = arguments["name"].as_str().unwrap_or("エミリー");
+        let personality_str = arguments["personality"].as_str().unwrap_or("balanced");
+
+        let personality = match personality_str {
+            "energetic" => CompanionPersonality::Energetic,
+            "intellectual" => CompanionPersonality::Intellectual,
+            "practical" => CompanionPersonality::Practical,
+            "dreamy" => CompanionPersonality::Dreamy,
+            _ => CompanionPersonality::Balanced,
+        };
+
+        let companion = Companion::new(name.to_string(), personality);
+        let profile = CompanionFormatter::format_profile(&companion);
+
+        self.companion = Some(companion);
+
+        json!({
+            "success": true,
+            "profile": profile,
+            "message": format!("{}があなたのコンパニオンになりました！", name)
+        })
+    }
+
+    // コンパニオンの反応
+    fn tool_companion_react(&mut self, arguments: &Value) -> Value {
+        if self.companion.is_none() {
+            return json!({
+                "success": false,
+                "error": "コンパニオンが作成されていません。create_companionツールで作成してください。"
+            });
+        }
+
+        let memory_id = arguments["memory_id"].as_str().unwrap_or("");
+
+        if let Some(memory) = self.memory_manager.get_memory(memory_id) {
+            let user_type = DiagnosisType::from_memory(memory);
+            let companion = self.companion.as_mut().unwrap();
+            let reaction = companion.react_to_memory(memory, &user_type);
+            let reaction_display = CompanionFormatter::format_reaction(companion, &reaction);
+
+            json!({
+                "success": true,
+                "reaction_display": reaction_display,
+                "affection_gained": reaction.affection_gained,
+                "xp_gained": reaction.xp_gained,
+                "level_up": reaction.level_up,
+                "message": "コンパニオンが反応しました！"
+            })
+        } else {
+            json!({
+                "success": false,
+                "error": format!("Memory not found: {}", memory_id)
+            })
+        }
+    }
+
+    // コンパニオンプロフィール
+    fn tool_companion_profile(&self) -> Value {
+        if let Some(ref companion) = self.companion {
+            let profile = CompanionFormatter::format_profile(companion);
+            json!({
+                "success": true,
+                "profile": profile
+            })
+        } else {
+            json!({
+                "success": false,
+                "error": "コンパニオンが作成されていません。create_companionツールで作成してください。"
+            })
+        }
     }
 
     // 不明なメソッドハンドラ
