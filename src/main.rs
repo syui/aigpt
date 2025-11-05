@@ -2,11 +2,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-pub mod memory;
-pub mod mcp;
-
-use memory::MemoryManager;
-use mcp::BaseMCPServer;
+use aigpt::memory::MemoryManager;
+use aigpt::mcp::BaseMCPServer;
 
 #[derive(Parser)]
 #[command(name = "aigpt")]
