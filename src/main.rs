@@ -10,7 +10,9 @@ use mcp::BaseMCPServer;
 
 #[derive(Parser)]
 #[command(name = "aigpt")]
+#[command(version)]
 #[command(about = "Simple memory storage for Claude with MCP")]
+#[command(long_about = "AI memory system with psychological priority scoring and game-style results!")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
