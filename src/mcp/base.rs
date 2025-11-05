@@ -98,13 +98,17 @@ impl BaseMCPServer {
         vec![
             json!({
                 "name": "create_memory",
-                "description": "⚠️ DEPRECATED: Use create_memory_with_ai instead for game-style results! This is a simple memory creation without interpretation or scoring.",
+                "description": "Create a new memory entry. Simple version with default score (0.5).",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "content": {
                             "type": "string",
-                            "description": "Content of the memory (plain text only, no formatting)"
+                            "description": "Content of the memory"
+                        },
+                        "game_mode": {
+                            "type": "boolean",
+                            "description": "Show game-style result (default: true)"
                         }
                     },
                     "required": ["content"]
@@ -314,12 +318,31 @@ impl BaseMCPServer {
     // 基本ツール実装
     fn tool_create_memory(&mut self, arguments: &Value) -> Value {
         let content = arguments["content"].as_str().unwrap_or("");
+        let game_mode = arguments["game_mode"].as_bool().unwrap_or(true); // デフォルトON
+
         match self.memory_manager.create_memory(content) {
-            Ok(id) => json!({
-                "success": true,
-                "id": id,
-                "message": "Memory created successfully"
-            }),
+            Ok(id) => {
+                if let Some(memory) = self.memory_manager.get_memory(&id) {
+                    let result = if game_mode {
+                        GameFormatter::format_memory_result(memory)
+                    } else {
+                        format!("Memory created (ID: {})", id)
+                    };
+
+                    json!({
+                        "success": true,
+                        "id": id,
+                        "game_result": result,
+                        "message": "Memory created successfully"
+                    })
+                } else {
+                    json!({
+                        "success": true,
+                        "id": id,
+                        "message": "Memory created successfully"
+                    })
+                }
+            }
             Err(e) => json!({
                 "success": false,
                 "error": e.to_string()
