@@ -86,19 +86,58 @@ aigpt import path/to/conversations.json
 
 ## 提供するMCPツール一覧
 
-1. **create_memory** - 新しいメモリを作成
+### 基本ツール
+
+1. **create_memory** - 新しいメモリを作成（シンプル版）
 2. **update_memory** - 既存のメモリを更新
 3. **delete_memory** - メモリを削除
 4. **search_memories** - メモリを検索
 5. **list_conversations** - インポートされた会話を一覧表示
 
+### AI機能ツール（重要！）
+
+6. **create_memory_with_ai** - AI解釈と心理判定付きでメモリを作成
+   - 元のコンテンツをAIが解釈
+   - 重要度を0.0-1.0のスコアで自動評価
+   - ユーザーコンテキストを考慮可能
+
+7. **list_memories_by_priority** - 優先順位順にメモリをリスト
+   - 高スコアから順に表示
+   - min_scoreで閾値フィルタリング可能
+   - limit で件数制限可能
+
 ## ツールの使用例
 
 Claude Desktop/Codeで以下のように使用します：
 
-### メモリの作成
+### 基本的なメモリ作成
 ```
 MCPツールを使って「今日は良い天気です」というメモリーを作成してください
+```
+
+### AI解釈付きメモリ作成（推奨）
+```
+create_memory_with_ai ツールを使って「新しいAI記憶システムのアイデアを思いついた」というメモリーを作成してください。
+ユーザーコンテキスト: 「AI開発者、創造的思考を重視」
+```
+
+レスポンス例：
+```json
+{
+  "success": true,
+  "id": "uuid-here",
+  "memory": {
+    "content": "新しいAI記憶システムのアイデアを思いついた",
+    "interpreted_content": "AIによる解釈: 記憶システムの革新的アプローチ...",
+    "priority_score": 0.85,
+    "user_context": "AI開発者、創造的思考を重視"
+  }
+}
+```
+
+### 優先順位でメモリをリスト
+```
+list_memories_by_priority ツールで、スコア0.7以上の重要なメモリを10件表示してください
 ```
 
 ### メモリの検索

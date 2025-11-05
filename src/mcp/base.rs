@@ -156,6 +156,43 @@ impl BaseMCPServer {
                     "type": "object",
                     "properties": {}
                 }
+            }),
+            json!({
+                "name": "create_memory_with_ai",
+                "description": "Create a new memory with AI interpretation and priority scoring",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "content": {
+                            "type": "string",
+                            "description": "Content of the memory"
+                        },
+                        "user_context": {
+                            "type": "string",
+                            "description": "User-specific context (optional)"
+                        }
+                    },
+                    "required": ["content"]
+                }
+            }),
+            json!({
+                "name": "list_memories_by_priority",
+                "description": "List memories sorted by priority score (high to low)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "min_score": {
+                            "type": "number",
+                            "description": "Minimum priority score (0.0-1.0)",
+                            "minimum": 0.0,
+                            "maximum": 1.0
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of memories to return"
+                        }
+                    }
+                }
             })
         ]
     }
@@ -183,6 +220,8 @@ impl BaseMCPServer {
     pub async fn execute_tool(&mut self, tool_name: &str, arguments: &Value) -> Value {
         match tool_name {
             "create_memory" => self.tool_create_memory(arguments),
+            "create_memory_with_ai" => self.tool_create_memory_with_ai(arguments).await,
+            "list_memories_by_priority" => self.tool_list_memories_by_priority(arguments),
             "search_memories" => self.tool_search_memories(arguments),
             "update_memory" => self.tool_update_memory(arguments),
             "delete_memory" => self.tool_delete_memory(arguments),
@@ -218,6 +257,9 @@ impl BaseMCPServer {
             "memories": memories.into_iter().map(|m| json!({
                 "id": m.id,
                 "content": m.content,
+                "interpreted_content": m.interpreted_content,
+                "priority_score": m.priority_score,
+                "user_context": m.user_context,
                 "created_at": m.created_at,
                 "updated_at": m.updated_at
             })).collect::<Vec<_>>()
@@ -262,6 +304,72 @@ impl BaseMCPServer {
                 "title": c.title,
                 "created_at": c.created_at,
                 "message_count": c.message_count
+            })).collect::<Vec<_>>()
+        })
+    }
+
+    // AI解釈付きメモリ作成
+    async fn tool_create_memory_with_ai(&mut self, arguments: &Value) -> Value {
+        let content = arguments["content"].as_str().unwrap_or("");
+        let user_context = arguments["user_context"].as_str();
+
+        match self.memory_manager.create_memory_with_ai(content, user_context).await {
+            Ok(id) => {
+                // 作成したメモリを取得して詳細情報を返す
+                if let Some(memory) = self.memory_manager.get_memory(&id) {
+                    json!({
+                        "success": true,
+                        "id": id,
+                        "memory": {
+                            "content": memory.content,
+                            "interpreted_content": memory.interpreted_content,
+                            "priority_score": memory.priority_score,
+                            "user_context": memory.user_context,
+                            "created_at": memory.created_at
+                        },
+                        "message": "Memory created with AI interpretation and priority scoring"
+                    })
+                } else {
+                    json!({
+                        "success": true,
+                        "id": id,
+                        "message": "Memory created with AI interpretation"
+                    })
+                }
+            }
+            Err(e) => json!({
+                "success": false,
+                "error": e.to_string()
+            })
+        }
+    }
+
+    // 優先順位順にメモリをリスト
+    fn tool_list_memories_by_priority(&self, arguments: &Value) -> Value {
+        let min_score = arguments["min_score"].as_f64().unwrap_or(0.0) as f32;
+        let limit = arguments["limit"].as_u64().map(|l| l as usize);
+
+        let mut memories = self.memory_manager.get_memories_by_priority();
+
+        // min_scoreでフィルタリング
+        memories.retain(|m| m.priority_score >= min_score);
+
+        // limitを適用
+        if let Some(limit) = limit {
+            memories.truncate(limit);
+        }
+
+        json!({
+            "success": true,
+            "count": memories.len(),
+            "memories": memories.into_iter().map(|m| json!({
+                "id": m.id,
+                "content": m.content,
+                "interpreted_content": m.interpreted_content,
+                "priority_score": m.priority_score,
+                "user_context": m.user_context,
+                "created_at": m.created_at,
+                "updated_at": m.updated_at
             })).collect::<Vec<_>>()
         })
     }

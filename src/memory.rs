@@ -298,6 +298,16 @@ impl MemoryManager {
         Ok((data.memories, data.conversations))
     }
 
+    // Getter: 単一メモリ取得
+    pub fn get_memory(&self, id: &str) -> Option<&Memory> {
+        self.memories.get(id)
+    }
+
+    // Getter: 全メモリ取得
+    pub fn get_all_memories(&self) -> Vec<&Memory> {
+        self.memories.values().collect()
+    }
+
     fn save_data(&self) -> Result<()> {
         #[derive(Serialize)]
         struct Data<'a> {
