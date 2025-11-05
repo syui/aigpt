@@ -3,7 +3,7 @@ name = "aigpt"
 version = "0.2.0"
 edition = "2021"
 authors = ["syui"]
-description = "Simple memory storage for Claude with MCP (with game mode!)"
+description = "Simple memory storage for Claude with MCP - Layer 1: Pure Memory Storage"
 
 [lib]
 name = "aigpt"
@@ -13,36 +13,25 @@ path = "src/lib.rs"
 name = "aigpt"
 path = "src/main.rs"
 
-[[bin]]
-name = "memory-mcp"
-path = "src/bin/mcp_server.rs"
-
-[[bin]]
-name = "memory-mcp-extended"
-path = "src/bin/mcp_server_extended.rs"
-
 [dependencies]
 # CLI and async
 clap = { version = "4.5", features = ["derive"] }
-tokio = { version = "1.40", features = ["full"] }
+tokio = { version = "1.40", features = ["rt", "macros", "io-stdio"] }
 
-# JSON and serialization
+# Database
+rusqlite = { version = "0.30", features = ["bundled"] }
+
+# Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
-# Date/time and UUID
+# Date/time and ULID
 chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.10", features = ["v4"] }
+ulid = "1.1"
 
-# Error handling and utilities
+# Error handling
+thiserror = "1.0"
 anyhow = "1.0"
+
+# Utilities
 dirs = "5.0"
-
-# Extended features (optional)
-reqwest = { version = "0.11", features = ["json"], optional = true }
-scraper = { version = "0.18", optional = true }
-
-[features]
-default = []
-extended = ["web-integration"]
-web-integration = ["reqwest", "scraper"]

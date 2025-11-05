@@ -2,31 +2,25 @@ use anyhow::Result;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 
-use crate::memory::MemoryManager;
-use crate::game_formatter::{GameFormatter, DiagnosisType};
-use crate::companion::{Companion, CompanionPersonality, CompanionFormatter};
+use crate::core::{Memory, MemoryStore};
 
 pub struct BaseMCPServer {
-    pub memory_manager: MemoryManager,
-    pub companion: Option<Companion>,  // 恋愛コンパニオン（オプション）
+    store: MemoryStore,
 }
 
 impl BaseMCPServer {
-    pub async fn new() -> Result<Self> {
-        let memory_manager = MemoryManager::new().await?;
-        Ok(BaseMCPServer {
-            memory_manager,
-            companion: None,  // 初期状態はコンパニオンなし
-        })
+    pub fn new() -> Result<Self> {
+        let store = MemoryStore::default()?;
+        Ok(BaseMCPServer { store })
     }
 
-    pub async fn run(&mut self) -> Result<()> {
+    pub fn run(&self) -> Result<()> {
         let stdin = io::stdin();
         let mut stdout = io::stdout();
-        
+
         let reader = stdin.lock();
         let lines = reader.lines();
-        
+
         for line_result in lines {
             match line_result {
                 Ok(line) => {
@@ -34,9 +28,9 @@ impl BaseMCPServer {
                     if trimmed.is_empty() {
                         continue;
                     }
-                    
+
                     if let Ok(request) = serde_json::from_str::<Value>(&trimmed) {
-                        let response = self.handle_request(request).await;
+                        let response = self.handle_request(request);
                         let response_str = serde_json::to_string(&response)?;
                         stdout.write_all(response_str.as_bytes())?;
                         stdout.write_all(b"\n")?;
@@ -46,23 +40,22 @@ impl BaseMCPServer {
                 Err(_) => break,
             }
         }
-        
+
         Ok(())
     }
 
-    pub async fn handle_request(&mut self, request: Value) -> Value {
+    fn handle_request(&self, request: Value) -> Value {
         let method = request["method"].as_str().unwrap_or("");
         let id = request["id"].clone();
 
         match method {
             "initialize" => self.handle_initialize(id),
             "tools/list" => self.handle_tools_list(id),
-            "tools/call" => self.handle_tools_call(request, id).await,
+            "tools/call" => self.handle_tools_call(request, id),
             _ => self.handle_unknown_method(id),
         }
     }
 
-    // 初期化ハンドラ
     fn handle_initialize(&self, id: Value) -> Value {
         json!({
             "jsonrpc": "2.0",
@@ -74,14 +67,13 @@ impl BaseMCPServer {
                 },
                 "serverInfo": {
                     "name": "aigpt",
-                    "version": "0.1.0"
+                    "version": "0.2.0"
                 }
             }
         })
     }
 
-    // ツールリストハンドラ (拡張可能)
-    pub fn handle_tools_list(&self, id: Value) -> Value {
+    fn handle_tools_list(&self, id: Value) -> Value {
         let tools = self.get_available_tools();
         json!({
             "jsonrpc": "2.0",
@@ -92,25 +84,34 @@ impl BaseMCPServer {
         })
     }
 
-    // 基本ツール定義 (拡張で上書き可能)
-    pub fn get_available_tools(&self) -> Vec<Value> {
+    fn get_available_tools(&self) -> Vec<Value> {
         vec![
             json!({
                 "name": "create_memory",
-                "description": "Create a new memory entry. Simple version with default score (0.5).",
+                "description": "Create a new memory entry",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "content": {
                             "type": "string",
                             "description": "Content of the memory"
-                        },
-                        "game_mode": {
-                            "type": "boolean",
-                            "description": "Show game-style result (default: true)"
                         }
                     },
                     "required": ["content"]
+                }
+            }),
+            json!({
+                "name": "get_memory",
+                "description": "Get a memory by ID",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "description": "Memory ID"
+                        }
+                    },
+                    "required": ["id"]
                 }
             }),
             json!({
@@ -125,6 +126,14 @@ impl BaseMCPServer {
                         }
                     },
                     "required": ["query"]
+                }
+            }),
+            json!({
+                "name": "list_memories",
+                "description": "List all memories",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
                 }
             }),
             json!({
@@ -159,127 +168,14 @@ impl BaseMCPServer {
                     "required": ["id"]
                 }
             }),
-            json!({
-                "name": "list_conversations",
-                "description": "List all imported conversations",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {}
-                }
-            }),
-            json!({
-                "name": "create_memory_with_ai",
-                "description": "✨ RECOMMENDED: Create a memory with psychological priority scoring and game-style results! \n\nHow to use:\n1. Interpret the user's input and extract deeper meaning\n2. Calculate priority_score (0.0-1.0) by adding these 4 scores:\n   - Emotional impact (0.0-0.25): How emotionally significant?\n   - User relevance (0.0-0.25): How relevant to the user?\n   - Novelty/uniqueness (0.0-0.25): How new or unique?\n   - Practical utility (0.0-0.25): How useful?\n3. Pass content (original), interpreted_content (your interpretation), and priority_score to this tool\n4. You'll get a game-style result with rarity (Common/Rare/Epic/Legendary), diagnosis type, and XP!\n\nExample:\n- User says: 'Working on AI features today'\n- You interpret: 'User is actively developing autonomous AI capabilities for their project'\n- You score: 0.75 (emotion:0.15 + relevance:0.20 + novelty:0.20 + utility:0.20)\n- System returns: '🟣 EPIC 75点 💡 革新者タイプ！'",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "content": {
-                            "type": "string",
-                            "description": "Original user content"
-                        },
-                        "interpreted_content": {
-                            "type": "string",
-                            "description": "Your interpretation of the content (extract deeper meaning)"
-                        },
-                        "priority_score": {
-                            "type": "number",
-                            "description": "Priority score 0.0-1.0 (sum of 4 criteria, each 0.0-0.25)",
-                            "minimum": 0.0,
-                            "maximum": 1.0
-                        },
-                        "user_context": {
-                            "type": "string",
-                            "description": "User-specific context (optional)"
-                        },
-                        "game_mode": {
-                            "type": "boolean",
-                            "description": "Show game-style result (default: true)"
-                        }
-                    },
-                    "required": ["content", "interpreted_content", "priority_score"]
-                }
-            }),
-            json!({
-                "name": "list_memories_by_priority",
-                "description": "List memories sorted by priority score (high to low) - Shows as ranking!",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "min_score": {
-                            "type": "number",
-                            "description": "Minimum priority score (0.0-1.0)",
-                            "minimum": 0.0,
-                            "maximum": 1.0
-                        },
-                        "limit": {
-                            "type": "integer",
-                            "description": "Maximum number of memories to return"
-                        },
-                        "game_mode": {
-                            "type": "boolean",
-                            "description": "Show as game-style ranking (default: true)"
-                        }
-                    }
-                }
-            }),
-            json!({
-                "name": "daily_challenge",
-                "description": "Get today's daily challenge - Create a memory to earn bonus XP!",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {}
-                }
-            }),
-            json!({
-                "name": "create_companion",
-                "description": "Create your AI companion - Choose name and personality!",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "type": "string",
-                            "description": "Companion's name"
-                        },
-                        "personality": {
-                            "type": "string",
-                            "enum": ["energetic", "intellectual", "practical", "dreamy", "balanced"],
-                            "description": "Companion's personality type"
-                        }
-                    },
-                    "required": ["name", "personality"]
-                }
-            }),
-            json!({
-                "name": "companion_react",
-                "description": "Show your companion's reaction to your latest memory",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "memory_id": {
-                            "type": "string",
-                            "description": "Memory ID to react to"
-                        }
-                    },
-                    "required": ["memory_id"]
-                }
-            }),
-            json!({
-                "name": "companion_profile",
-                "description": "View your companion's profile and stats",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {}
-                }
-            })
         ]
     }
 
-    // ツール呼び出しハンドラ
-    async fn handle_tools_call(&mut self, request: Value, id: Value) -> Value {
+    fn handle_tools_call(&self, request: Value, id: Value) -> Value {
         let tool_name = request["params"]["name"].as_str().unwrap_or("");
         let arguments = &request["params"]["arguments"];
 
-        let result = self.execute_tool(tool_name, arguments).await;
+        let result = self.execute_tool(tool_name, arguments);
 
         json!({
             "jsonrpc": "2.0",
@@ -293,97 +189,125 @@ impl BaseMCPServer {
         })
     }
 
-    // ツール実行 (拡張で上書き可能)
-    pub async fn execute_tool(&mut self, tool_name: &str, arguments: &Value) -> Value {
+    fn execute_tool(&self, tool_name: &str, arguments: &Value) -> Value {
         match tool_name {
             "create_memory" => self.tool_create_memory(arguments),
-            "create_memory_with_ai" => self.tool_create_memory_with_ai(arguments).await,
-            "list_memories_by_priority" => self.tool_list_memories_by_priority(arguments),
-            "daily_challenge" => self.tool_daily_challenge(),
-            "create_companion" => self.tool_create_companion(arguments),
-            "companion_react" => self.tool_companion_react(arguments),
-            "companion_profile" => self.tool_companion_profile(),
+            "get_memory" => self.tool_get_memory(arguments),
             "search_memories" => self.tool_search_memories(arguments),
+            "list_memories" => self.tool_list_memories(),
             "update_memory" => self.tool_update_memory(arguments),
             "delete_memory" => self.tool_delete_memory(arguments),
-            "list_conversations" => self.tool_list_conversations(),
             _ => json!({
                 "success": false,
                 "error": format!("Unknown tool: {}", tool_name)
-            })
+            }),
         }
     }
 
-    // 基本ツール実装
-    fn tool_create_memory(&mut self, arguments: &Value) -> Value {
+    fn tool_create_memory(&self, arguments: &Value) -> Value {
         let content = arguments["content"].as_str().unwrap_or("");
-        let game_mode = arguments["game_mode"].as_bool().unwrap_or(true); // デフォルトON
+        let memory = Memory::new(content.to_string());
 
-        match self.memory_manager.create_memory(content) {
-            Ok(id) => {
-                if let Some(memory) = self.memory_manager.get_memory(&id) {
-                    let result = if game_mode {
-                        GameFormatter::format_memory_result(memory)
-                    } else {
-                        format!("Memory created (ID: {})", id)
-                    };
-
-                    json!({
-                        "success": true,
-                        "id": id,
-                        "game_result": result,
-                        "message": "Memory created successfully"
-                    })
-                } else {
-                    json!({
-                        "success": true,
-                        "id": id,
-                        "message": "Memory created successfully"
-                    })
-                }
-            }
+        match self.store.create(&memory) {
+            Ok(()) => json!({
+                "success": true,
+                "id": memory.id,
+                "message": "Memory created successfully"
+            }),
             Err(e) => json!({
                 "success": false,
                 "error": e.to_string()
-            })
+            }),
+        }
+    }
+
+    fn tool_get_memory(&self, arguments: &Value) -> Value {
+        let id = arguments["id"].as_str().unwrap_or("");
+
+        match self.store.get(id) {
+            Ok(memory) => json!({
+                "success": true,
+                "memory": {
+                    "id": memory.id,
+                    "content": memory.content,
+                    "created_at": memory.created_at,
+                    "updated_at": memory.updated_at
+                }
+            }),
+            Err(e) => json!({
+                "success": false,
+                "error": e.to_string()
+            }),
         }
     }
 
     fn tool_search_memories(&self, arguments: &Value) -> Value {
         let query = arguments["query"].as_str().unwrap_or("");
-        let memories = self.memory_manager.search_memories(query);
-        json!({
-            "success": true,
-            "memories": memories.into_iter().map(|m| json!({
-                "id": m.id,
-                "content": m.content,
-                "interpreted_content": m.interpreted_content,
-                "priority_score": m.priority_score,
-                "user_context": m.user_context,
-                "created_at": m.created_at,
-                "updated_at": m.updated_at
-            })).collect::<Vec<_>>()
-        })
-    }
 
-    fn tool_update_memory(&mut self, arguments: &Value) -> Value {
-        let id = arguments["id"].as_str().unwrap_or("");
-        let content = arguments["content"].as_str().unwrap_or("");
-        match self.memory_manager.update_memory(id, content) {
-            Ok(()) => json!({
+        match self.store.search(query) {
+            Ok(memories) => json!({
                 "success": true,
-                "message": "Memory updated successfully"
+                "memories": memories.into_iter().map(|m| json!({
+                    "id": m.id,
+                    "content": m.content,
+                    "created_at": m.created_at,
+                    "updated_at": m.updated_at
+                })).collect::<Vec<_>>()
             }),
             Err(e) => json!({
                 "success": false,
                 "error": e.to_string()
-            })
+            }),
         }
     }
 
-    fn tool_delete_memory(&mut self, arguments: &Value) -> Value {
+    fn tool_list_memories(&self) -> Value {
+        match self.store.list() {
+            Ok(memories) => json!({
+                "success": true,
+                "memories": memories.into_iter().map(|m| json!({
+                    "id": m.id,
+                    "content": m.content,
+                    "created_at": m.created_at,
+                    "updated_at": m.updated_at
+                })).collect::<Vec<_>>()
+            }),
+            Err(e) => json!({
+                "success": false,
+                "error": e.to_string()
+            }),
+        }
+    }
+
+    fn tool_update_memory(&self, arguments: &Value) -> Value {
         let id = arguments["id"].as_str().unwrap_or("");
-        match self.memory_manager.delete_memory(id) {
+        let content = arguments["content"].as_str().unwrap_or("");
+
+        match self.store.get(id) {
+            Ok(mut memory) => {
+                memory.update_content(content.to_string());
+                match self.store.update(&memory) {
+                    Ok(()) => json!({
+                        "success": true,
+                        "message": "Memory updated successfully"
+                    }),
+                    Err(e) => json!({
+                        "success": false,
+                        "error": e.to_string()
+                    }),
+                }
+            }
+            Err(e) => json!({
+                "success": false,
+                "error": e.to_string()
+            }),
+        }
+    }
+
+    fn tool_delete_memory(&self, arguments: &Value) -> Value {
+        let id = arguments["id"].as_str().unwrap_or("");
+
+        match self.store.delete(id) {
             Ok(()) => json!({
                 "success": true,
                 "message": "Memory deleted successfully"
@@ -391,204 +315,10 @@ impl BaseMCPServer {
             Err(e) => json!({
                 "success": false,
                 "error": e.to_string()
-            })
+            }),
         }
     }
 
-    fn tool_list_conversations(&self) -> Value {
-        let conversations = self.memory_manager.list_conversations();
-        json!({
-            "success": true,
-            "conversations": conversations.into_iter().map(|c| json!({
-                "id": c.id,
-                "title": c.title,
-                "created_at": c.created_at,
-                "message_count": c.message_count
-            })).collect::<Vec<_>>()
-        })
-    }
-
-    // AI解釈付きメモリ作成
-    async fn tool_create_memory_with_ai(&mut self, arguments: &Value) -> Value {
-        let content = arguments["content"].as_str().unwrap_or("");
-        let interpreted_content = arguments["interpreted_content"].as_str().unwrap_or(content);
-        let priority_score = arguments["priority_score"].as_f64().unwrap_or(0.5) as f32;
-        let user_context = arguments["user_context"].as_str();
-        let game_mode = arguments["game_mode"].as_bool().unwrap_or(true);
-
-        // Claude Code から受け取った解釈とスコアでメモリを作成
-        match self.memory_manager.create_memory_with_interpretation(
-            content,
-            interpreted_content,
-            priority_score,
-            user_context
-        ) {
-            Ok(id) => {
-                // 作成したメモリを取得して詳細情報を返す
-                if let Some(memory) = self.memory_manager.get_memory(&id) {
-                    let result = if game_mode {
-                        // ゲーム風表示
-                        GameFormatter::format_memory_result(memory)
-                    } else {
-                        // 通常表示
-                        format!("Memory created with AI interpretation\nScore: {}", memory.priority_score)
-                    };
-
-                    let shareable = GameFormatter::format_shareable_text(memory);
-
-                    json!({
-                        "success": true,
-                        "id": id,
-                        "memory": {
-                            "content": memory.content,
-                            "interpreted_content": memory.interpreted_content,
-                            "priority_score": memory.priority_score,
-                            "user_context": memory.user_context,
-                            "created_at": memory.created_at
-                        },
-                        "game_result": result,
-                        "shareable_text": shareable,
-                        "message": "Memory created with Claude Code's interpretation and priority scoring!"
-                    })
-                } else {
-                    json!({
-                        "success": true,
-                        "id": id,
-                        "message": "Memory created"
-                    })
-                }
-            }
-            Err(e) => json!({
-                "success": false,
-                "error": e.to_string()
-            })
-        }
-    }
-
-    // 優先順位順にメモリをリスト
-    fn tool_list_memories_by_priority(&self, arguments: &Value) -> Value {
-        let min_score = arguments["min_score"].as_f64().unwrap_or(0.0) as f32;
-        let limit = arguments["limit"].as_u64().map(|l| l as usize);
-        let game_mode = arguments["game_mode"].as_bool().unwrap_or(true);
-
-        let mut memories = self.memory_manager.get_memories_by_priority();
-
-        // min_scoreでフィルタリング
-        memories.retain(|m| m.priority_score >= min_score);
-
-        // limitを適用
-        if let Some(limit) = limit {
-            memories.truncate(limit);
-        }
-
-        let ranking_display = if game_mode {
-            GameFormatter::format_ranking(&memories, "🏆 メモリーランキング TOP 10")
-        } else {
-            String::new()
-        };
-
-        json!({
-            "success": true,
-            "count": memories.len(),
-            "ranking_display": ranking_display,
-            "memories": memories.into_iter().map(|m| json!({
-                "id": m.id,
-                "content": m.content,
-                "interpreted_content": m.interpreted_content,
-                "priority_score": m.priority_score,
-                "user_context": m.user_context,
-                "created_at": m.created_at,
-                "updated_at": m.updated_at
-            })).collect::<Vec<_>>()
-        })
-    }
-
-    // デイリーチャレンジ
-    fn tool_daily_challenge(&self) -> Value {
-        let challenge_display = GameFormatter::format_daily_challenge();
-
-        json!({
-            "success": true,
-            "challenge_display": challenge_display,
-            "message": "Complete today's challenge to earn bonus XP!"
-        })
-    }
-
-    // コンパニオン作成
-    fn tool_create_companion(&mut self, arguments: &Value) -> Value {
-        let name = arguments["name"].as_str().unwrap_or("エミリー");
-        let personality_str = arguments["personality"].as_str().unwrap_or("balanced");
-
-        let personality = match personality_str {
-            "energetic" => CompanionPersonality::Energetic,
-            "intellectual" => CompanionPersonality::Intellectual,
-            "practical" => CompanionPersonality::Practical,
-            "dreamy" => CompanionPersonality::Dreamy,
-            _ => CompanionPersonality::Balanced,
-        };
-
-        let companion = Companion::new(name.to_string(), personality);
-        let profile = CompanionFormatter::format_profile(&companion);
-
-        self.companion = Some(companion);
-
-        json!({
-            "success": true,
-            "profile": profile,
-            "message": format!("{}があなたのコンパニオンになりました！", name)
-        })
-    }
-
-    // コンパニオンの反応
-    fn tool_companion_react(&mut self, arguments: &Value) -> Value {
-        if self.companion.is_none() {
-            return json!({
-                "success": false,
-                "error": "コンパニオンが作成されていません。create_companionツールで作成してください。"
-            });
-        }
-
-        let memory_id = arguments["memory_id"].as_str().unwrap_or("");
-
-        if let Some(memory) = self.memory_manager.get_memory(memory_id) {
-            let user_type = DiagnosisType::from_memory(memory);
-            let companion = self.companion.as_mut().unwrap();
-            let reaction = companion.react_to_memory(memory, &user_type);
-            let reaction_display = CompanionFormatter::format_reaction(companion, &reaction);
-
-            json!({
-                "success": true,
-                "reaction_display": reaction_display,
-                "affection_gained": reaction.affection_gained,
-                "xp_gained": reaction.xp_gained,
-                "level_up": reaction.level_up,
-                "message": "コンパニオンが反応しました！"
-            })
-        } else {
-            json!({
-                "success": false,
-                "error": format!("Memory not found: {}", memory_id)
-            })
-        }
-    }
-
-    // コンパニオンプロフィール
-    fn tool_companion_profile(&self) -> Value {
-        if let Some(ref companion) = self.companion {
-            let profile = CompanionFormatter::format_profile(companion);
-            json!({
-                "success": true,
-                "profile": profile
-            })
-        } else {
-            json!({
-                "success": false,
-                "error": "コンパニオンが作成されていません。create_companionツールで作成してください。"
-            })
-        }
-    }
-
-    // 不明なメソッドハンドラ
     fn handle_unknown_method(&self, id: Value) -> Value {
         json!({
             "jsonrpc": "2.0",
