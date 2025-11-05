@@ -98,13 +98,13 @@ impl BaseMCPServer {
         vec![
             json!({
                 "name": "create_memory",
-                "description": "Create a new memory entry",
+                "description": "⚠️ DEPRECATED: Use create_memory_with_ai instead for game-style results! This is a simple memory creation without interpretation or scoring.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "content": {
                             "type": "string",
-                            "description": "Content of the memory"
+                            "description": "Content of the memory (plain text only, no formatting)"
                         }
                     },
                     "required": ["content"]
@@ -166,7 +166,7 @@ impl BaseMCPServer {
             }),
             json!({
                 "name": "create_memory_with_ai",
-                "description": "Create a memory with psychological priority scoring! \n\nIMPORTANT: You (Claude) should:\n1. Interpret the user's content and extract deeper meaning\n2. Calculate priority_score (0.0-1.0) based on these criteria:\n   - Emotional impact (0.0-0.25)\n   - User relevance (0.0-0.25)\n   - Novelty/uniqueness (0.0-0.25)\n   - Practical utility (0.0-0.25)\n3. Provide the interpreted content and score to this tool\n4. The system will show a game-style result with rarity, type, and XP!",
+                "description": "✨ RECOMMENDED: Create a memory with psychological priority scoring and game-style results! \n\nHow to use:\n1. Interpret the user's input and extract deeper meaning\n2. Calculate priority_score (0.0-1.0) by adding these 4 scores:\n   - Emotional impact (0.0-0.25): How emotionally significant?\n   - User relevance (0.0-0.25): How relevant to the user?\n   - Novelty/uniqueness (0.0-0.25): How new or unique?\n   - Practical utility (0.0-0.25): How useful?\n3. Pass content (original), interpreted_content (your interpretation), and priority_score to this tool\n4. You'll get a game-style result with rarity (Common/Rare/Epic/Legendary), diagnosis type, and XP!\n\nExample:\n- User says: 'Working on AI features today'\n- You interpret: 'User is actively developing autonomous AI capabilities for their project'\n- You score: 0.75 (emotion:0.15 + relevance:0.20 + novelty:0.20 + utility:0.20)\n- System returns: '🟣 EPIC 75点 💡 革新者タイプ！'",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
