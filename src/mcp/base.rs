@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 
-use crate::core::{Memory, MemoryStore};
+use crate::core::{Memory, MemoryStore, UserAnalysis};
 
 pub struct BaseMCPServer {
     store: MemoryStore,
@@ -192,6 +192,58 @@ impl BaseMCPServer {
                     "required": ["id"]
                 }
             }),
+            json!({
+                "name": "save_user_analysis",
+                "description": "Save a Big Five personality analysis based on user's memories (Layer 3)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "openness": {
+                            "type": "number",
+                            "description": "Openness to Experience (0.0-1.0)",
+                            "minimum": 0.0,
+                            "maximum": 1.0
+                        },
+                        "conscientiousness": {
+                            "type": "number",
+                            "description": "Conscientiousness (0.0-1.0)",
+                            "minimum": 0.0,
+                            "maximum": 1.0
+                        },
+                        "extraversion": {
+                            "type": "number",
+                            "description": "Extraversion (0.0-1.0)",
+                            "minimum": 0.0,
+                            "maximum": 1.0
+                        },
+                        "agreeableness": {
+                            "type": "number",
+                            "description": "Agreeableness (0.0-1.0)",
+                            "minimum": 0.0,
+                            "maximum": 1.0
+                        },
+                        "neuroticism": {
+                            "type": "number",
+                            "description": "Neuroticism (0.0-1.0)",
+                            "minimum": 0.0,
+                            "maximum": 1.0
+                        },
+                        "summary": {
+                            "type": "string",
+                            "description": "AI-generated summary of the personality analysis"
+                        }
+                    },
+                    "required": ["openness", "conscientiousness", "extraversion", "agreeableness", "neuroticism", "summary"]
+                }
+            }),
+            json!({
+                "name": "get_user_analysis",
+                "description": "Get the most recent Big Five personality analysis (Layer 3)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }),
         ]
     }
 
@@ -222,6 +274,8 @@ impl BaseMCPServer {
             "list_memories" => self.tool_list_memories(),
             "update_memory" => self.tool_update_memory(arguments),
             "delete_memory" => self.tool_delete_memory(arguments),
+            "save_user_analysis" => self.tool_save_user_analysis(arguments),
+            "get_user_analysis" => self.tool_get_user_analysis(),
             _ => json!({
                 "success": false,
                 "error": format!("Unknown tool: {}", tool_name)
@@ -366,6 +420,67 @@ impl BaseMCPServer {
             Ok(()) => json!({
                 "success": true,
                 "message": "Memory deleted successfully"
+            }),
+            Err(e) => json!({
+                "success": false,
+                "error": e.to_string()
+            }),
+        }
+    }
+
+    // ========== Layer 3: User Analysis Tools ==========
+
+    fn tool_save_user_analysis(&self, arguments: &Value) -> Value {
+        let openness = arguments["openness"].as_f64().unwrap_or(0.5) as f32;
+        let conscientiousness = arguments["conscientiousness"].as_f64().unwrap_or(0.5) as f32;
+        let extraversion = arguments["extraversion"].as_f64().unwrap_or(0.5) as f32;
+        let agreeableness = arguments["agreeableness"].as_f64().unwrap_or(0.5) as f32;
+        let neuroticism = arguments["neuroticism"].as_f64().unwrap_or(0.5) as f32;
+        let summary = arguments["summary"].as_str().unwrap_or("").to_string();
+
+        let analysis = UserAnalysis::new(
+            openness,
+            conscientiousness,
+            extraversion,
+            agreeableness,
+            neuroticism,
+            summary,
+        );
+
+        match self.store.save_analysis(&analysis) {
+            Ok(()) => json!({
+                "success": true,
+                "id": analysis.id,
+                "message": "User analysis saved successfully",
+                "dominant_trait": analysis.dominant_trait()
+            }),
+            Err(e) => json!({
+                "success": false,
+                "error": e.to_string()
+            }),
+        }
+    }
+
+    fn tool_get_user_analysis(&self) -> Value {
+        match self.store.get_latest_analysis() {
+            Ok(Some(analysis)) => json!({
+                "success": true,
+                "analysis": {
+                    "id": analysis.id,
+                    "openness": analysis.openness,
+                    "conscientiousness": analysis.conscientiousness,
+                    "extraversion": analysis.extraversion,
+                    "agreeableness": analysis.agreeableness,
+                    "neuroticism": analysis.neuroticism,
+                    "summary": analysis.summary,
+                    "dominant_trait": analysis.dominant_trait(),
+                    "analyzed_at": analysis.analyzed_at
+                }
+            }),
+            Ok(None) => json!({
+                "success": true,
+                "analysis": null,
+                "message": "No analysis found. Run personality analysis first."
             }),
             Err(e) => json!({
                 "success": false,

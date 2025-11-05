@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 use std::path::PathBuf;
 
+use super::analysis::UserAnalysis;
 use super::error::{MemoryError, Result};
 use super::memory::Memory;
 
@@ -58,6 +59,26 @@ impl MemoryStore {
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_priority_score ON memories(priority_score)",
+            [],
+        )?;
+
+        // Create user_analyses table (Layer 3)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS user_analyses (
+                id TEXT PRIMARY KEY,
+                openness REAL NOT NULL,
+                conscientiousness REAL NOT NULL,
+                extraversion REAL NOT NULL,
+                agreeableness REAL NOT NULL,
+                neuroticism REAL NOT NULL,
+                summary TEXT NOT NULL,
+                analyzed_at TEXT NOT NULL
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_analyzed_at ON user_analyses(analyzed_at)",
             [],
         )?;
 
@@ -248,6 +269,102 @@ impl MemoryStore {
             .conn
             .query_row("SELECT COUNT(*) FROM memories", [], |row| row.get(0))?;
         Ok(count)
+    }
+
+    // ========== Layer 3: User Analysis Methods ==========
+
+    /// Save a new user personality analysis
+    pub fn save_analysis(&self, analysis: &UserAnalysis) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO user_analyses (id, openness, conscientiousness, extraversion, agreeableness, neuroticism, summary, analyzed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                &analysis.id,
+                &analysis.openness,
+                &analysis.conscientiousness,
+                &analysis.extraversion,
+                &analysis.agreeableness,
+                &analysis.neuroticism,
+                &analysis.summary,
+                analysis.analyzed_at.to_rfc3339(),
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Get the most recent user analysis
+    pub fn get_latest_analysis(&self) -> Result<Option<UserAnalysis>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, openness, conscientiousness, extraversion, agreeableness, neuroticism, summary, analyzed_at
+             FROM user_analyses
+             ORDER BY analyzed_at DESC
+             LIMIT 1",
+        )?;
+
+        let result = stmt.query_row([], |row| {
+            let analyzed_at: String = row.get(7)?;
+
+            Ok(UserAnalysis {
+                id: row.get(0)?,
+                openness: row.get(1)?,
+                conscientiousness: row.get(2)?,
+                extraversion: row.get(3)?,
+                agreeableness: row.get(4)?,
+                neuroticism: row.get(5)?,
+                summary: row.get(6)?,
+                analyzed_at: DateTime::parse_from_rfc3339(&analyzed_at)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            7,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?,
+            })
+        });
+
+        match result {
+            Ok(analysis) => Ok(Some(analysis)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Get all user analyses, ordered by date (newest first)
+    pub fn list_analyses(&self) -> Result<Vec<UserAnalysis>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, openness, conscientiousness, extraversion, agreeableness, neuroticism, summary, analyzed_at
+             FROM user_analyses
+             ORDER BY analyzed_at DESC",
+        )?;
+
+        let analyses = stmt
+            .query_map([], |row| {
+                let analyzed_at: String = row.get(7)?;
+
+                Ok(UserAnalysis {
+                    id: row.get(0)?,
+                    openness: row.get(1)?,
+                    conscientiousness: row.get(2)?,
+                    extraversion: row.get(3)?,
+                    agreeableness: row.get(4)?,
+                    neuroticism: row.get(5)?,
+                    summary: row.get(6)?,
+                    analyzed_at: DateTime::parse_from_rfc3339(&analyzed_at)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .map_err(|e| {
+                            rusqlite::Error::FromSqlConversionFailure(
+                                7,
+                                rusqlite::types::Type::Text,
+                                Box::new(e),
+                            )
+                        })?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(analyses)
     }
 }
 
