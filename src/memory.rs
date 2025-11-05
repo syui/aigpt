@@ -72,7 +72,8 @@ pub struct MemoryManager {
     conversations: HashMap<String, Conversation>,
     data_file: PathBuf,
     max_memories: usize,           // 最大記憶数
-    min_priority_score: f32,       // 最小優先度スコア (0.0-1.0)
+    #[allow(dead_code)]
+    min_priority_score: f32,       // 最小優先度スコア (将来の機能で使用予定)
     ai_interpreter: AIInterpreter, // AI解釈エンジン
 }
 
