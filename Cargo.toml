@@ -5,6 +5,9 @@ edition = "2021"
 authors = ["syui"]
 description = "Simple memory storage for Claude with MCP (with game mode!)"
 
+[lib]
+name = "aigpt"
+path = "src/lib.rs"
 
 [[bin]]
 name = "aigpt"
