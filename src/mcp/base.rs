@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 
 use crate::memory::MemoryManager;
+use crate::game_formatter::GameFormatter;
 
 pub struct BaseMCPServer {
     pub memory_manager: MemoryManager,
@@ -159,7 +160,7 @@ impl BaseMCPServer {
             }),
             json!({
                 "name": "create_memory_with_ai",
-                "description": "Create a new memory with AI interpretation and priority scoring",
+                "description": "Create a new memory with AI interpretation and priority scoring (with game-style result!)",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -170,6 +171,10 @@ impl BaseMCPServer {
                         "user_context": {
                             "type": "string",
                             "description": "User-specific context (optional)"
+                        },
+                        "game_mode": {
+                            "type": "boolean",
+                            "description": "Show game-style result (default: true)"
                         }
                     },
                     "required": ["content"]
@@ -177,7 +182,7 @@ impl BaseMCPServer {
             }),
             json!({
                 "name": "list_memories_by_priority",
-                "description": "List memories sorted by priority score (high to low)",
+                "description": "List memories sorted by priority score (high to low) - Shows as ranking!",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -190,8 +195,20 @@ impl BaseMCPServer {
                         "limit": {
                             "type": "integer",
                             "description": "Maximum number of memories to return"
+                        },
+                        "game_mode": {
+                            "type": "boolean",
+                            "description": "Show as game-style ranking (default: true)"
                         }
                     }
+                }
+            }),
+            json!({
+                "name": "daily_challenge",
+                "description": "Get today's daily challenge - Create a memory to earn bonus XP!",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
                 }
             })
         ]
@@ -222,6 +239,7 @@ impl BaseMCPServer {
             "create_memory" => self.tool_create_memory(arguments),
             "create_memory_with_ai" => self.tool_create_memory_with_ai(arguments).await,
             "list_memories_by_priority" => self.tool_list_memories_by_priority(arguments),
+            "daily_challenge" => self.tool_daily_challenge(),
             "search_memories" => self.tool_search_memories(arguments),
             "update_memory" => self.tool_update_memory(arguments),
             "delete_memory" => self.tool_delete_memory(arguments),
@@ -312,11 +330,22 @@ impl BaseMCPServer {
     async fn tool_create_memory_with_ai(&mut self, arguments: &Value) -> Value {
         let content = arguments["content"].as_str().unwrap_or("");
         let user_context = arguments["user_context"].as_str();
+        let game_mode = arguments["game_mode"].as_bool().unwrap_or(true);
 
         match self.memory_manager.create_memory_with_ai(content, user_context).await {
             Ok(id) => {
                 // 作成したメモリを取得して詳細情報を返す
                 if let Some(memory) = self.memory_manager.get_memory(&id) {
+                    let result = if game_mode {
+                        // ゲーム風表示
+                        GameFormatter::format_memory_result(memory)
+                    } else {
+                        // 通常表示
+                        format!("Memory created with AI interpretation\nScore: {}", memory.priority_score)
+                    };
+
+                    let shareable = GameFormatter::format_shareable_text(memory);
+
                     json!({
                         "success": true,
                         "id": id,
@@ -327,6 +356,8 @@ impl BaseMCPServer {
                             "user_context": memory.user_context,
                             "created_at": memory.created_at
                         },
+                        "game_result": result,
+                        "shareable_text": shareable,
                         "message": "Memory created with AI interpretation and priority scoring"
                     })
                 } else {
@@ -348,6 +379,7 @@ impl BaseMCPServer {
     fn tool_list_memories_by_priority(&self, arguments: &Value) -> Value {
         let min_score = arguments["min_score"].as_f64().unwrap_or(0.0) as f32;
         let limit = arguments["limit"].as_u64().map(|l| l as usize);
+        let game_mode = arguments["game_mode"].as_bool().unwrap_or(true);
 
         let mut memories = self.memory_manager.get_memories_by_priority();
 
@@ -359,9 +391,16 @@ impl BaseMCPServer {
             memories.truncate(limit);
         }
 
+        let ranking_display = if game_mode {
+            GameFormatter::format_ranking(&memories, "🏆 メモリーランキング TOP 10")
+        } else {
+            String::new()
+        };
+
         json!({
             "success": true,
             "count": memories.len(),
+            "ranking_display": ranking_display,
             "memories": memories.into_iter().map(|m| json!({
                 "id": m.id,
                 "content": m.content,
@@ -371,6 +410,17 @@ impl BaseMCPServer {
                 "created_at": m.created_at,
                 "updated_at": m.updated_at
             })).collect::<Vec<_>>()
+        })
+    }
+
+    // デイリーチャレンジ
+    fn tool_daily_challenge(&self) -> Value {
+        let challenge_display = GameFormatter::format_daily_challenge();
+
+        json!({
+            "success": true,
+            "challenge_display": challenge_display,
+            "message": "Complete today's challenge to earn bonus XP!"
         })
     }
 
