@@ -1,5 +1,6 @@
 use crate::memory::Memory;
 use serde::{Deserialize, Serialize};
+use chrono::Datelike;
 
 /// メモリーのレア度
 #[derive(Debug, Clone, Serialize, Deserialize)]

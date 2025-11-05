@@ -238,7 +238,7 @@ impl MemoryManager {
     // 優先度順に記憶を取得
     pub fn get_memories_by_priority(&self) -> Vec<&Memory> {
         let mut memories: Vec<_> = self.memories.values().collect();
-        memories.sort_by(|a, b| b.priority_score.cmp(&a.priority_score));
+        memories.sort_by(|a, b| b.priority_score.partial_cmp(&a.priority_score).unwrap_or(std::cmp::Ordering::Equal));
         memories
     }
 

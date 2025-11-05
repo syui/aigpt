@@ -1,7 +1,7 @@
 use crate::memory::Memory;
 use crate::game_formatter::{MemoryRarity, DiagnosisType};
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, Datelike};
 
 /// コンパニオンキャラクター
 #[derive(Debug, Clone, Serialize, Deserialize)]
