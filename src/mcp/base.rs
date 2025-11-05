@@ -5,7 +5,6 @@ use std::io::{self, BufRead, Write};
 use crate::memory::MemoryManager;
 use crate::game_formatter::{GameFormatter, DiagnosisType};
 use crate::companion::{Companion, CompanionPersonality, CompanionFormatter};
-use std::sync::{Arc, Mutex};
 
 pub struct BaseMCPServer {
     pub memory_manager: MemoryManager,

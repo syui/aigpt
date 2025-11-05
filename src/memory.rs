@@ -225,7 +225,7 @@ impl MemoryManager {
             .map(|(id, mem)| (id.clone(), mem.priority_score))
             .collect();
 
-        sorted_memories.sort_by(|a, b| a.1.cmp(&b.1));
+        sorted_memories.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
         let to_remove = self.memories.len() - self.max_memories;
         for (id, _) in sorted_memories.iter().take(to_remove) {

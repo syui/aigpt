@@ -120,7 +120,7 @@ impl Companion {
     }
 
     /// 記憶に基づく反応メッセージを生成
-    fn generate_reaction_message(&self, memory: &Memory, rarity: &MemoryRarity, user_type: &DiagnosisType) -> String {
+    fn generate_reaction_message(&self, memory: &Memory, rarity: &MemoryRarity, _user_type: &DiagnosisType) -> String {
         let content_preview = if memory.content.len() > 50 {
             format!("{}...", &memory.content[..50])
         } else {
