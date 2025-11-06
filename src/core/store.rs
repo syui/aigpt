@@ -102,6 +102,17 @@ impl MemoryStore {
             [],
         )?;
 
+        // Create relationship_cache table (Layer 4 - relationship inference cache)
+        // entity_id = "" for all_relationships cache
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS relationship_cache (
+                entity_id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                cached_at TEXT NOT NULL
+            )",
+            [],
+        )?;
+
         Ok(Self { conn })
     }
 
@@ -137,6 +148,10 @@ impl MemoryStore {
                 memory.updated_at.to_rfc3339(),
             ],
         )?;
+
+        // Clear relationship cache since memory data changed
+        self.clear_relationship_cache()?;
+
         Ok(())
     }
 
@@ -204,6 +219,9 @@ impl MemoryStore {
             return Err(MemoryError::NotFound(memory.id.clone()));
         }
 
+        // Clear relationship cache since memory data changed
+        self.clear_relationship_cache()?;
+
         Ok(())
     }
 
@@ -216,6 +234,9 @@ impl MemoryStore {
         if rows_affected == 0 {
             return Err(MemoryError::NotFound(id.to_string()));
         }
+
+        // Clear relationship cache since memory data changed
+        self.clear_relationship_cache()?;
 
         Ok(())
     }
@@ -463,6 +484,123 @@ impl MemoryStore {
         self.save_profile(&profile)?;
 
         Ok(profile)
+    }
+
+    // ========== Layer 4: Relationship Cache Methods ==========
+
+    /// Cache duration in minutes
+    const RELATIONSHIP_CACHE_DURATION_MINUTES: i64 = 5;
+
+    /// Save relationship inference to cache
+    pub fn save_relationship_cache(
+        &self,
+        entity_id: &str,
+        relationship: &super::relationship::RelationshipInference,
+    ) -> Result<()> {
+        let data = serde_json::to_string(relationship)?;
+        let cached_at = Utc::now().to_rfc3339();
+
+        self.conn.execute(
+            "INSERT OR REPLACE INTO relationship_cache (entity_id, data, cached_at) VALUES (?1, ?2, ?3)",
+            params![entity_id, data, cached_at],
+        )?;
+
+        Ok(())
+    }
+
+    /// Get cached relationship inference
+    pub fn get_cached_relationship(
+        &self,
+        entity_id: &str,
+    ) -> Result<Option<super::relationship::RelationshipInference>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT data, cached_at FROM relationship_cache WHERE entity_id = ?1")?;
+
+        let result = stmt.query_row([entity_id], |row| {
+            let data: String = row.get(0)?;
+            let cached_at: String = row.get(1)?;
+            Ok((data, cached_at))
+        });
+
+        match result {
+            Ok((data, cached_at_str)) => {
+                // Check if cache is still valid (within 5 minutes)
+                let cached_at = DateTime::parse_from_rfc3339(&cached_at_str)
+                    .map_err(|e| MemoryError::Parse(e.to_string()))?
+                    .with_timezone(&Utc);
+
+                let age_minutes = (Utc::now() - cached_at).num_minutes();
+
+                if age_minutes < Self::RELATIONSHIP_CACHE_DURATION_MINUTES {
+                    let relationship: super::relationship::RelationshipInference =
+                        serde_json::from_str(&data)?;
+                    Ok(Some(relationship))
+                } else {
+                    // Cache expired
+                    Ok(None)
+                }
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Save all relationships list to cache (use empty string as entity_id)
+    pub fn save_all_relationships_cache(
+        &self,
+        relationships: &[super::relationship::RelationshipInference],
+    ) -> Result<()> {
+        let data = serde_json::to_string(relationships)?;
+        let cached_at = Utc::now().to_rfc3339();
+
+        self.conn.execute(
+            "INSERT OR REPLACE INTO relationship_cache (entity_id, data, cached_at) VALUES ('', ?1, ?2)",
+            params![data, cached_at],
+        )?;
+
+        Ok(())
+    }
+
+    /// Get cached all relationships list
+    pub fn get_cached_all_relationships(
+        &self,
+    ) -> Result<Option<Vec<super::relationship::RelationshipInference>>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT data, cached_at FROM relationship_cache WHERE entity_id = ''")?;
+
+        let result = stmt.query_row([], |row| {
+            let data: String = row.get(0)?;
+            let cached_at: String = row.get(1)?;
+            Ok((data, cached_at))
+        });
+
+        match result {
+            Ok((data, cached_at_str)) => {
+                let cached_at = DateTime::parse_from_rfc3339(&cached_at_str)
+                    .map_err(|e| MemoryError::Parse(e.to_string()))?
+                    .with_timezone(&Utc);
+
+                let age_minutes = (Utc::now() - cached_at).num_minutes();
+
+                if age_minutes < Self::RELATIONSHIP_CACHE_DURATION_MINUTES {
+                    let relationships: Vec<super::relationship::RelationshipInference> =
+                        serde_json::from_str(&data)?;
+                    Ok(Some(relationships))
+                } else {
+                    Ok(None)
+                }
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Clear all relationship caches (call when memories are modified)
+    pub fn clear_relationship_cache(&self) -> Result<()> {
+        self.conn.execute("DELETE FROM relationship_cache", [])?;
+        Ok(())
     }
 }
 

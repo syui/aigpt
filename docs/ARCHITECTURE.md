@@ -362,10 +362,16 @@ if user.extraversion < 0.5 {
 
 ### Design Philosophy
 
-**推測のみ、保存なし**:
+**推測ベース + 短期キャッシング**:
 - 毎回Layer 1-3.5から計算
-- キャッシュなし（シンプルさ優先）
-- 後でキャッシング追加可能
+- 5分間の短期キャッシュで負荷軽減
+- メモリ更新時にキャッシュ無効化
+
+**キャッシング戦略**:
+- SQLiteテーブル（`relationship_cache`）に保存
+- 個別エンティティ: `get_relationship(entity_id)`
+- 全体リスト: `list_relationships()`
+- メモリ作成/更新/削除時に自動クリア
 
 **独立性**:
 - Layer 1-3.5に依存
