@@ -46,6 +46,16 @@ impl MemoryStore {
             conn.execute("ALTER TABLE memories ADD COLUMN priority_score REAL", [])?;
         }
 
+        // Migrate for Layer 4: related_entities
+        let has_related_entities: bool = conn
+            .prepare("SELECT COUNT(*) FROM pragma_table_info('memories') WHERE name='related_entities'")?
+            .query_row([], |row| row.get(0))
+            .map(|count: i32| count > 0)?;
+
+        if !has_related_entities {
+            conn.execute("ALTER TABLE memories ADD COLUMN related_entities TEXT", [])?;
+        }
+
         // Create indexes for better query performance
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_created_at ON memories(created_at)",
@@ -109,14 +119,20 @@ impl MemoryStore {
 
     /// Insert a new memory
     pub fn create(&self, memory: &Memory) -> Result<()> {
+        let related_entities_json = memory.related_entities
+            .as_ref()
+            .map(|entities| serde_json::to_string(entities).ok())
+            .flatten();
+
         self.conn.execute(
-            "INSERT INTO memories (id, content, ai_interpretation, priority_score, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO memories (id, content, ai_interpretation, priority_score, related_entities, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 &memory.id,
                 &memory.content,
                 &memory.ai_interpretation,
                 &memory.priority_score,
+                related_entities_json,
                 memory.created_at.to_rfc3339(),
                 memory.updated_at.to_rfc3339(),
             ],
@@ -128,29 +144,33 @@ impl MemoryStore {
     pub fn get(&self, id: &str) -> Result<Memory> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, content, ai_interpretation, priority_score, created_at, updated_at
+            .prepare("SELECT id, content, ai_interpretation, priority_score, related_entities, created_at, updated_at
                       FROM memories WHERE id = ?1")?;
 
         let memory = stmt.query_row(params![id], |row| {
-            let created_at: String = row.get(4)?;
-            let updated_at: String = row.get(5)?;
+            let created_at: String = row.get(5)?;
+            let updated_at: String = row.get(6)?;
+            let related_entities_json: Option<String> = row.get(4)?;
+            let related_entities = related_entities_json
+                .and_then(|json| serde_json::from_str(&json).ok());
 
             Ok(Memory {
                 id: row.get(0)?,
                 content: row.get(1)?,
                 ai_interpretation: row.get(2)?,
                 priority_score: row.get(3)?,
+                related_entities,
                 created_at: DateTime::parse_from_rfc3339(&created_at)
                     .map(|dt| dt.with_timezone(&Utc))
                     .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                        4,
+                        5,
                         rusqlite::types::Type::Text,
                         Box::new(e),
                     ))?,
                 updated_at: DateTime::parse_from_rfc3339(&updated_at)
                     .map(|dt| dt.with_timezone(&Utc))
                     .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                        5,
+                        6,
                         rusqlite::types::Type::Text,
                         Box::new(e),
                     ))?,
@@ -162,13 +182,19 @@ impl MemoryStore {
 
     /// Update an existing memory
     pub fn update(&self, memory: &Memory) -> Result<()> {
+        let related_entities_json = memory.related_entities
+            .as_ref()
+            .map(|entities| serde_json::to_string(entities).ok())
+            .flatten();
+
         let rows_affected = self.conn.execute(
-            "UPDATE memories SET content = ?1, ai_interpretation = ?2, priority_score = ?3, updated_at = ?4
-             WHERE id = ?5",
+            "UPDATE memories SET content = ?1, ai_interpretation = ?2, priority_score = ?3, related_entities = ?4, updated_at = ?5
+             WHERE id = ?6",
             params![
                 &memory.content,
                 &memory.ai_interpretation,
                 &memory.priority_score,
+                related_entities_json,
                 memory.updated_at.to_rfc3339(),
                 &memory.id,
             ],
@@ -197,31 +223,35 @@ impl MemoryStore {
     /// List all memories, ordered by creation time (newest first)
     pub fn list(&self) -> Result<Vec<Memory>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, content, ai_interpretation, priority_score, created_at, updated_at
+            "SELECT id, content, ai_interpretation, priority_score, related_entities, created_at, updated_at
              FROM memories ORDER BY created_at DESC",
         )?;
 
         let memories = stmt
             .query_map([], |row| {
-                let created_at: String = row.get(4)?;
-                let updated_at: String = row.get(5)?;
+                let created_at: String = row.get(5)?;
+                let updated_at: String = row.get(6)?;
+                let related_entities_json: Option<String> = row.get(4)?;
+                let related_entities = related_entities_json
+                    .and_then(|json| serde_json::from_str(&json).ok());
 
                 Ok(Memory {
                     id: row.get(0)?,
                     content: row.get(1)?,
                     ai_interpretation: row.get(2)?,
                     priority_score: row.get(3)?,
+                    related_entities,
                     created_at: DateTime::parse_from_rfc3339(&created_at)
                         .map(|dt| dt.with_timezone(&Utc))
                         .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                            4,
+                            5,
                             rusqlite::types::Type::Text,
                             Box::new(e),
                         ))?,
                     updated_at: DateTime::parse_from_rfc3339(&updated_at)
                         .map(|dt| dt.with_timezone(&Utc))
                         .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                            5,
+                            6,
                             rusqlite::types::Type::Text,
                             Box::new(e),
                         ))?,
@@ -235,7 +265,7 @@ impl MemoryStore {
     /// Search memories by content or AI interpretation (case-insensitive)
     pub fn search(&self, query: &str) -> Result<Vec<Memory>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, content, ai_interpretation, priority_score, created_at, updated_at
+            "SELECT id, content, ai_interpretation, priority_score, related_entities, created_at, updated_at
              FROM memories
              WHERE content LIKE ?1 OR ai_interpretation LIKE ?1
              ORDER BY created_at DESC",
@@ -244,25 +274,29 @@ impl MemoryStore {
         let search_pattern = format!("%{}%", query);
         let memories = stmt
             .query_map(params![search_pattern], |row| {
-                let created_at: String = row.get(4)?;
-                let updated_at: String = row.get(5)?;
+                let created_at: String = row.get(5)?;
+                let updated_at: String = row.get(6)?;
+                let related_entities_json: Option<String> = row.get(4)?;
+                let related_entities = related_entities_json
+                    .and_then(|json| serde_json::from_str(&json).ok());
 
                 Ok(Memory {
                     id: row.get(0)?,
                     content: row.get(1)?,
                     ai_interpretation: row.get(2)?,
                     priority_score: row.get(3)?,
+                    related_entities,
                     created_at: DateTime::parse_from_rfc3339(&created_at)
                         .map(|dt| dt.with_timezone(&Utc))
                         .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                            4,
+                            5,
                             rusqlite::types::Type::Text,
                             Box::new(e),
                         ))?,
                     updated_at: DateTime::parse_from_rfc3339(&updated_at)
                         .map(|dt| dt.with_timezone(&Utc))
                         .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                            5,
+                            6,
                             rusqlite::types::Type::Text,
                             Box::new(e),
                         ))?,

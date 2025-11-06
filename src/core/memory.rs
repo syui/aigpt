@@ -19,6 +19,10 @@ pub struct Memory {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub priority_score: Option<f32>,
 
+    /// Related entities (people, places, things) involved in this memory (Layer 4)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub related_entities: Option<Vec<String>>,
+
     /// When this memory was created
     pub created_at: DateTime<Utc>,
 
@@ -37,6 +41,7 @@ impl Memory {
             content,
             ai_interpretation: None,
             priority_score: None,
+            related_entities: None,
             created_at: now,
             updated_at: now,
         }
@@ -56,6 +61,28 @@ impl Memory {
             content,
             ai_interpretation,
             priority_score,
+            related_entities: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    /// Create a new memory with related entities (Layer 4)
+    pub fn new_with_entities(
+        content: String,
+        ai_interpretation: Option<String>,
+        priority_score: Option<f32>,
+        related_entities: Option<Vec<String>>,
+    ) -> Self {
+        let now = Utc::now();
+        let id = Ulid::new().to_string();
+
+        Self {
+            id,
+            content,
+            ai_interpretation,
+            priority_score,
+            related_entities,
             created_at: now,
             updated_at: now,
         }
@@ -77,6 +104,20 @@ impl Memory {
     pub fn set_priority_score(&mut self, score: f32) {
         self.priority_score = Some(score.clamp(0.0, 1.0));
         self.updated_at = Utc::now();
+    }
+
+    /// Set or update related entities
+    pub fn set_related_entities(&mut self, entities: Vec<String>) {
+        self.related_entities = Some(entities);
+        self.updated_at = Utc::now();
+    }
+
+    /// Check if this memory is related to a specific entity
+    pub fn has_entity(&self, entity_id: &str) -> bool {
+        self.related_entities
+            .as_ref()
+            .map(|entities| entities.iter().any(|e| e == entity_id))
+            .unwrap_or(false)
     }
 }
 
