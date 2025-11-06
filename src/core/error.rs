@@ -19,6 +19,9 @@ pub enum MemoryError {
 
     #[error("Configuration error: {0}")]
     Config(String),
+
+    #[error("Parse error: {0}")]
+    Parse(String),
 }
 
 pub type Result<T> = std::result::Result<T, MemoryError>;
