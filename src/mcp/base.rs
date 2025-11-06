@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 
-use crate::core::{Memory, MemoryStore, UserAnalysis, RelationshipInference, infer_all_relationships, get_relationship};
+use crate::core::{Memory, MemoryStore, UserAnalysis, infer_all_relationships, get_relationship};
 
 pub struct BaseMCPServer {
     store: MemoryStore,

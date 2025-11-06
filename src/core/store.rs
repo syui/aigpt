@@ -530,7 +530,7 @@ impl MemoryStore {
                     .map_err(|e| MemoryError::Parse(e.to_string()))?
                     .with_timezone(&Utc);
 
-                let age_minutes = (Utc::now() - cached_at).num_minutes();
+                let age_minutes = (Utc::now() - cached_at).num_seconds() / 60;
 
                 if age_minutes < Self::RELATIONSHIP_CACHE_DURATION_MINUTES {
                     let relationship: super::relationship::RelationshipInference =
@@ -582,7 +582,7 @@ impl MemoryStore {
                     .map_err(|e| MemoryError::Parse(e.to_string()))?
                     .with_timezone(&Utc);
 
-                let age_minutes = (Utc::now() - cached_at).num_minutes();
+                let age_minutes = (Utc::now() - cached_at).num_seconds() / 60;
 
                 if age_minutes < Self::RELATIONSHIP_CACHE_DURATION_MINUTES {
                     let relationships: Vec<super::relationship::RelationshipInference> =
