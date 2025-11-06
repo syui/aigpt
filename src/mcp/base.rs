@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 
-use crate::core::{Memory, MemoryStore, UserAnalysis};
+use crate::core::{Memory, MemoryStore, UserAnalysis, RelationshipInference, infer_all_relationships};
 
 pub struct BaseMCPServer {
     store: MemoryStore,
@@ -252,6 +252,33 @@ impl BaseMCPServer {
                     "properties": {}
                 }
             }),
+            json!({
+                "name": "get_relationship",
+                "description": "Get inferred relationship with a specific entity (Layer 4). Analyzes memories and user profile to infer bond strength and relationship type. Use only when game/relationship features are active.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "entity_id": {
+                            "type": "string",
+                            "description": "Entity identifier (e.g., 'alice', 'companion_miku')"
+                        }
+                    },
+                    "required": ["entity_id"]
+                }
+            }),
+            json!({
+                "name": "list_relationships",
+                "description": "List all inferred relationships sorted by bond strength (Layer 4). Returns relationships with all tracked entities. Use only when game/relationship features are active.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "limit": {
+                            "type": "number",
+                            "description": "Maximum number of relationships to return (default: 10)"
+                        }
+                    }
+                }
+            }),
         ]
     }
 
@@ -285,6 +312,8 @@ impl BaseMCPServer {
             "save_user_analysis" => self.tool_save_user_analysis(arguments),
             "get_user_analysis" => self.tool_get_user_analysis(),
             "get_profile" => self.tool_get_profile(),
+            "get_relationship" => self.tool_get_relationship(arguments),
+            "list_relationships" => self.tool_list_relationships(arguments),
             _ => json!({
                 "success": false,
                 "error": format!("Unknown tool: {}", tool_name)
@@ -511,6 +540,87 @@ impl BaseMCPServer {
                     "last_updated": profile.last_updated
                 }
             }),
+            Err(e) => json!({
+                "success": false,
+                "error": e.to_string()
+            }),
+        }
+    }
+
+    fn tool_get_relationship(&self, arguments: &Value) -> Value {
+        let entity_id = arguments["entity_id"].as_str().unwrap_or("");
+
+        if entity_id.is_empty() {
+            return json!({
+                "success": false,
+                "error": "entity_id is required"
+            });
+        }
+
+        // Get memories and user profile
+        let memories = match self.store.list() {
+            Ok(m) => m,
+            Err(e) => return json!({
+                "success": false,
+                "error": format!("Failed to get memories: {}", e)
+            }),
+        };
+
+        let user_profile = match self.store.get_profile() {
+            Ok(p) => p,
+            Err(e) => return json!({
+                "success": false,
+                "error": format!("Failed to get profile: {}", e)
+            }),
+        };
+
+        // Infer relationship
+        let relationship = RelationshipInference::infer(
+            entity_id.to_string(),
+            &memories,
+            &user_profile,
+        );
+
+        json!({
+            "success": true,
+            "relationship": {
+                "entity_id": relationship.entity_id,
+                "interaction_count": relationship.interaction_count,
+                "avg_priority": relationship.avg_priority,
+                "days_since_last": relationship.days_since_last,
+                "bond_strength": relationship.bond_strength,
+                "relationship_type": relationship.relationship_type,
+                "confidence": relationship.confidence,
+                "inferred_at": relationship.inferred_at
+            }
+        })
+    }
+
+    fn tool_list_relationships(&self, arguments: &Value) -> Value {
+        let limit = arguments["limit"].as_u64().unwrap_or(10) as usize;
+
+        match infer_all_relationships(&self.store) {
+            Ok(mut relationships) => {
+                // Limit results
+                if relationships.len() > limit {
+                    relationships.truncate(limit);
+                }
+
+                json!({
+                    "success": true,
+                    "relationships": relationships.iter().map(|r| {
+                        json!({
+                            "entity_id": r.entity_id,
+                            "interaction_count": r.interaction_count,
+                            "avg_priority": r.avg_priority,
+                            "days_since_last": r.days_since_last,
+                            "bond_strength": r.bond_strength,
+                            "relationship_type": r.relationship_type,
+                            "confidence": r.confidence
+                        })
+                    }).collect::<Vec<_>>()
+                })
+            }
             Err(e) => json!({
                 "success": false,
                 "error": e.to_string()
