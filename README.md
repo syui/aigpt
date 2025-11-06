@@ -4,6 +4,8 @@ AI memory system with psychological analysis for Claude via MCP.
 
 **Current: Layers 1-4 Complete** - Memory storage, AI interpretation, personality analysis, integrated profile, and relationship inference.
 
+**Planned: Layer 5** - Knowledge sharing platform combining useful insights with author personality.
+
 ## Features
 
 ### Layer 1: Pure Memory Storage
@@ -33,6 +35,12 @@ AI memory system with psychological analysis for Claude via MCP.
 - 📊 **Bond Strength**: Infer relationship strength from memory patterns
 - 🎮 **Game Ready**: Foundation for companion apps, games, VTubers
 - 🔒 **Opt-in**: Enable only when needed with `--enable-layer4` flag
+
+### Layer 5: Knowledge Sharing (Planned)
+- 💡 **Information + Personality**: Share AI interactions with context
+- 🌐 **SNS for AI Era**: Useful insights combined with author's unique perspective
+- 🔒 **Privacy-First**: Share essence, not raw data
+- 📊 **Showcase**: Display how AI understands you
 
 ### General
 - 🛠️ **MCP Integration**: Works seamlessly with Claude Code
@@ -223,8 +231,8 @@ Multi-layer system design:
 - **Layer 3** ✅ Complete: Big Five personality analysis
 - **Layer 3.5** ✅ Complete: Integrated profile (unified summary)
 - **Layer 4** ✅ Complete: Relationship inference (optional, `--enable-layer4`)
-- **Layer 4+** 🔵 Future: Extended game/companion features
-- **Layer 5** 🔵 Future: Distribution and sharing
+- **Layer 4+** 🔵 Planned: Extended game/companion features
+- **Layer 5** 🔵 Planned: Knowledge sharing (information + personality)
 
 **Design Philosophy**:
 - **"Internal complexity, external simplicity"**: Simple API, complex internals
