@@ -12,29 +12,29 @@ aigptは、独立したレイヤーを積み重ねる設計です。各レイヤ
 
 ```
 ┌─────────────────────────────────────────┐
-│  Layer 5: Distribution & Sharing       │  🔵 Future
+│  Layer 5: Distribution & Sharing       │  Future
 │  (Game streaming, public/private)      │
 ├─────────────────────────────────────────┤
-│  Layer 4b: AI Companion                │  🔵 Planned
+│  Layer 4b: AI Companion                │  Future
 │  (Romance system, personality growth)   │
 ├─────────────────────────────────────────┤
-│  Layer 4a: Game Systems                │  🔵 Planned
+│  Layer 4a: Game Systems                │  Future
 │  (Ranking, rarity, XP, visualization)   │
 ├─────────────────────────────────────────┤
-│  Layer 3: User Evaluation              │  ✅ Complete
-│  (Big Five personality analysis)        │
+│  Layer 3: User Evaluation              │  Future
+│  (Personality diagnosis from patterns)  │
 ├─────────────────────────────────────────┤
-│  Layer 2: AI Memory                    │  ✅ Complete
+│  Layer 2: AI Memory                    │  Future
 │  (Claude interpretation, priority_score)│
 ├─────────────────────────────────────────┤
-│  Layer 1: Pure Memory Storage          │  ✅ Complete
+│  Layer 1: Pure Memory Storage          │  ✅ Current
 │  (SQLite, ULID, CRUD operations)       │
 └─────────────────────────────────────────┘
 ```
 
-## Layer 1: Pure Memory Storage
+## Layer 1: Pure Memory Storage (Current)
 
-**Status**: ✅ **Complete**
+**Status**: ✅ **Implemented & Tested**
 
 ### Purpose
 正確なデータの保存と参照。シンプルで信頼できる基盤。
@@ -86,16 +86,16 @@ src/
 
 ---
 
-## Layer 2: AI Memory
+## Layer 2: AI Memory (Planned)
 
-**Status**: ✅ **Complete**
+**Status**: 🔵 **Planned**
 
 ### Purpose
-Claudeが記憶内容を解釈し、重要度を評価。人間の記憶プロセス（記憶と同時に評価）を模倣。
+Claudeが記憶内容を解釈し、重要度を評価。
 
 ### Extended Data Model
 ```rust
-pub struct Memory {
+pub struct AIMemory {
     // Layer 1 fields
     pub id: String,
     pub content: String,
@@ -103,75 +103,63 @@ pub struct Memory {
     pub updated_at: DateTime<Utc>,
 
     // Layer 2 additions
-    pub ai_interpretation: Option<String>,  // Claude's interpretation
-    pub priority_score: Option<f32>,        // 0.0 - 1.0
+    pub interpreted_content: String,  // Claude's interpretation
+    pub priority_score: f32,          // 0.0 - 1.0
+    pub psychological_factors: PsychologicalFactors,
+}
+
+pub struct PsychologicalFactors {
+    pub emotional_weight: f32,    // 0.0 - 1.0
+    pub personal_relevance: f32,  // 0.0 - 1.0
+    pub novelty: f32,             // 0.0 - 1.0
+    pub utility: f32,             // 0.0 - 1.0
 }
 ```
 
-### MCP Tools
-- `create_ai_memory` - Create memory with AI interpretation and priority score
-  - `content`: Memory content
-  - `ai_interpretation`: Optional AI interpretation
-  - `priority_score`: Optional priority (0.0-1.0)
+### MCP Tools (Additional)
+- `create_memory_with_ai` - Create with Claude interpretation
+- `reinterpret_memory` - Re-evaluate existing memory
+- `get_high_priority` - Get memories above threshold
 
-### Philosophy
-"AIは進化しますが、ツールは進化しません" - AIが判断し、ツールは記録のみ。
-
-### Implementation
-- Backward compatible with Layer 1 (Optional fields)
-- Automatic schema migration from Layer 1
+### Implementation Strategy
+- Feature flag: `--features ai-memory`
+- Backward compatible with Layer 1
 - Claude Code does interpretation (no external API)
 
 ---
 
-## Layer 3: User Evaluation
+## Layer 3: User Evaluation (Planned)
 
-**Status**: ✅ **Complete**
+**Status**: 🔵 **Planned**
 
 ### Purpose
-Layer 2のメモリパターンからユーザーの性格を分析。Big Five心理学モデルを使用。
+メモリパターンからユーザーの性格を診断。
 
-### Data Model
+### Diagnosis Types
 ```rust
-pub struct UserAnalysis {
-    pub id: String,
-    pub openness: f32,              // 0.0-1.0: 創造性、好奇心
-    pub conscientiousness: f32,      // 0.0-1.0: 計画性、信頼性
-    pub extraversion: f32,           // 0.0-1.0: 外向性、社交性
-    pub agreeableness: f32,          // 0.0-1.0: 協調性、共感性
-    pub neuroticism: f32,            // 0.0-1.0: 神経質さ（低い=安定）
-    pub summary: String,             // 分析サマリー
-    pub analyzed_at: DateTime<Utc>,
+pub enum DiagnosisType {
+    Innovator,      // 革新者
+    Philosopher,    // 哲学者
+    Pragmatist,     // 実用主義者
+    Explorer,       // 探検家
+    Protector,      // 保護者
+    Visionary,      // 未来志向
 }
 ```
 
-### Big Five Model
-心理学で最も信頼性の高い性格モデル（OCEAN）：
-- **O**penness: 新しい経験への開かれさ
-- **C**onscientiousness: 誠実性、計画性
-- **E**xtraversion: 外向性
-- **A**greeableness: 協調性
-- **N**euroticism: 神経質さ
+### Analysis
+- Memory content patterns
+- Priority score distribution
+- Creation frequency
+- Topic diversity
 
-### Analysis Process
-1. Layer 2メモリを蓄積
-2. AIがパターンを分析（活動の種類、優先度の傾向など）
-3. Big Fiveスコアを推測
-4. 分析結果を保存
-
-### MCP Tools
-- `save_user_analysis` - Save Big Five personality analysis
-  - All 5 traits (0.0-1.0) + summary
-- `get_user_analysis` - Get latest personality profile
-
-### Storage
-- SQLite table: `user_analyses`
-- Historical tracking: Compare analyses over time
-- Helper methods: `dominant_trait()`, `is_high()`
+### MCP Tools (Additional)
+- `diagnose_user` - Run personality diagnosis
+- `get_user_profile` - Get analysis summary
 
 ---
 
-## Layer 4a: Game Systems
+## Layer 4a: Game Systems (Planned)
 
 **Status**: 🔵 **Planned**
 
@@ -196,7 +184,7 @@ pub struct GameMemory {
 
 ---
 
-## Layer 4b: AI Companion
+## Layer 4b: AI Companion (Planned)
 
 **Status**: 🔵 **Planned**
 
@@ -248,27 +236,21 @@ pub struct Companion {
 - [x] Tests
 - [x] Documentation
 
-### Phase 2: Layer 2 ✅ (Complete)
-- [x] Add AI interpretation fields to schema
-- [x] Implement priority scoring logic
-- [x] Create `create_ai_memory` tool
-- [x] Update MCP server
-- [x] Automatic schema migration
-- [x] Backward compatibility
+### Phase 2: Layer 2 (Next)
+- [ ] Add AI interpretation fields to schema
+- [ ] Implement priority scoring logic
+- [ ] Create `create_memory_with_ai` tool
+- [ ] Update MCP server
+- [ ] Write tests for AI features
 
-### Phase 3: Layer 3 ✅ (Complete)
-- [x] Big Five personality model
-- [x] UserAnalysis data structure
-- [x] user_analyses table
-- [x] `save_user_analysis` tool
-- [x] `get_user_analysis` tool
-- [x] Historical tracking support
+### Phase 3: Layers 3-4 (Future)
+- [ ] User diagnosis system
+- [ ] Game mechanics
+- [ ] Companion system
 
-### Phase 4: Layers 4-5 (Next)
-- [ ] Game mechanics (Layer 4a)
-- [ ] Companion system (Layer 4b)
-- [ ] Sharing mechanisms (Layer 5)
-- [ ] Public/private modes (Layer 5)
+### Phase 4: Layer 5 (Future)
+- [ ] Sharing mechanisms
+- [ ] Public/private modes
 
 ## Design Principles
 
@@ -348,5 +330,5 @@ src/
 ---
 
 **Version**: 0.2.0
-**Last Updated**: 2025-11-06
-**Current Status**: Layers 1-3 Complete, Layer 4 Planned
+**Last Updated**: 2025-11-05
+**Current Layer**: 1
