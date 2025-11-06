@@ -1,9 +1,9 @@
 [package]
 name = "aigpt"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["syui"]
-description = "Simple memory storage for Claude with MCP - Layer 1: Pure Memory Storage"
+description = "AI memory system with personality analysis and relationship inference - Layers 1-4 Complete"
 
 [lib]
 name = "aigpt"
