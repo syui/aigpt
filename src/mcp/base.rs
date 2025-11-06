@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 
-use crate::core::{Memory, MemoryStore, UserAnalysis, RelationshipInference, infer_all_relationships};
+use crate::core::{Memory, MemoryStore, UserAnalysis, RelationshipInference, infer_all_relationships, get_relationship};
 
 pub struct BaseMCPServer {
     store: MemoryStore,
@@ -581,43 +581,26 @@ impl BaseMCPServer {
             });
         }
 
-        // Get memories and user profile
-        let memories = match self.store.list() {
-            Ok(m) => m,
-            Err(e) => return json!({
-                "success": false,
-                "error": format!("Failed to get memories: {}", e)
+        // Get relationship (with caching)
+        match get_relationship(&self.store, entity_id) {
+            Ok(relationship) => json!({
+                "success": true,
+                "relationship": {
+                    "entity_id": relationship.entity_id,
+                    "interaction_count": relationship.interaction_count,
+                    "avg_priority": relationship.avg_priority,
+                    "days_since_last": relationship.days_since_last,
+                    "bond_strength": relationship.bond_strength,
+                    "relationship_type": relationship.relationship_type,
+                    "confidence": relationship.confidence,
+                    "inferred_at": relationship.inferred_at
+                }
             }),
-        };
-
-        let user_profile = match self.store.get_profile() {
-            Ok(p) => p,
-            Err(e) => return json!({
+            Err(e) => json!({
                 "success": false,
-                "error": format!("Failed to get profile: {}", e)
+                "error": format!("Failed to get relationship: {}", e)
             }),
-        };
-
-        // Infer relationship
-        let relationship = RelationshipInference::infer(
-            entity_id.to_string(),
-            &memories,
-            &user_profile,
-        );
-
-        json!({
-            "success": true,
-            "relationship": {
-                "entity_id": relationship.entity_id,
-                "interaction_count": relationship.interaction_count,
-                "avg_priority": relationship.avg_priority,
-                "days_since_last": relationship.days_since_last,
-                "bond_strength": relationship.bond_strength,
-                "relationship_type": relationship.relationship_type,
-                "confidence": relationship.confidence,
-                "inferred_at": relationship.inferred_at
-            }
-        })
+        }
     }
 
     fn tool_list_relationships(&self, arguments: &Value) -> Value {

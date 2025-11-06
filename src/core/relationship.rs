@@ -184,6 +184,11 @@ impl RelationshipInference {
 pub fn infer_all_relationships(
     store: &MemoryStore,
 ) -> Result<Vec<RelationshipInference>> {
+    // Check cache first
+    if let Some(cached) = store.get_cached_all_relationships()? {
+        return Ok(cached);
+    }
+
     // Get all memories
     let memories = store.list()?;
 
@@ -219,7 +224,39 @@ pub fn infer_all_relationships(
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
+    // Cache the result
+    store.save_all_relationships_cache(&relationships)?;
+
     Ok(relationships)
+}
+
+/// Get relationship inference for a specific entity (with caching)
+pub fn get_relationship(
+    store: &MemoryStore,
+    entity_id: &str,
+) -> Result<RelationshipInference> {
+    // Check cache first
+    if let Some(cached) = store.get_cached_relationship(entity_id)? {
+        return Ok(cached);
+    }
+
+    // Get all memories
+    let memories = store.list()?;
+
+    // Get user profile
+    let user_profile = store.get_profile()?;
+
+    // Infer relationship
+    let relationship = RelationshipInference::infer(
+        entity_id.to_string(),
+        &memories,
+        &user_profile,
+    );
+
+    // Cache it
+    store.save_relationship_cache(entity_id, &relationship)?;
+
+    Ok(relationship)
 }
 
 #[cfg(test)]
