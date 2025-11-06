@@ -1,177 +1,266 @@
-# aigpt - Claude Memory MCP Server
+# aigpt
 
-ChatGPTのメモリ機能を参考にした、Claude Desktop/Code用のシンプルなメモリストレージシステムです。
+AI memory system with psychological analysis for Claude via MCP.
 
-## 機能
+**Current: Layers 1-4 Complete** - Memory storage, AI interpretation, personality analysis, integrated profile, and relationship inference.
 
-- **メモリのCRUD操作**: メモリの作成、更新、削除、検索
-- **ChatGPT JSONインポート**: ChatGPTの会話履歴からメモリを抽出
-- **stdio MCP実装**: Claude Desktop/Codeとの簡潔な連携
-- **JSONファイル保存**: シンプルなファイルベースのデータ保存
+## Features
 
-## インストール
+### Layer 1: Pure Memory Storage
+- 🗄️ **SQLite Storage**: Reliable database with ACID guarantees
+- 🔖 **ULID IDs**: Time-sortable, 26-character unique identifiers
+- 🔍 **Search**: Fast content-based search
+- 📝 **CRUD Operations**: Complete memory management
 
-1. Rustをインストール（まだの場合）:
+### Layer 2: AI Memory
+- 🧠 **AI Interpretation**: Claude interprets and evaluates memories
+- 📊 **Priority Scoring**: Importance ratings (0.0-1.0)
+- 🎯 **Smart Storage**: Memory + evaluation in one step
+
+### Layer 3: Personality Analysis
+- 🔬 **Big Five Model**: Scientifically validated personality assessment
+- 📈 **Pattern Recognition**: Analyzes memory patterns to build user profile
+- 💾 **Historical Tracking**: Save and compare analyses over time
+
+### Layer 3.5: Integrated Profile
+- 🎯 **Essential Summary**: Unified view of personality, interests, and values
+- 🤖 **AI-Optimized**: Primary tool for AI to understand the user
+- ⚡ **Smart Caching**: Auto-updates only when necessary
+- 🔍 **Flexible Access**: Detailed data still accessible when needed
+
+### Layer 4: Relationship Inference (Optional)
+- 🤝 **Relationship Tracking**: Track interactions with entities (people, characters, etc.)
+- 📊 **Bond Strength**: Infer relationship strength from memory patterns
+- 🎮 **Game Ready**: Foundation for companion apps, games, VTubers
+- 🔒 **Opt-in**: Enable only when needed with `--enable-layer4` flag
+
+### General
+- 🛠️ **MCP Integration**: Works seamlessly with Claude Code
+- 🧪 **Well-tested**: Comprehensive test coverage
+- 🚀 **Simple & Fast**: Minimal dependencies, pure Rust
+
+## Quick Start
+
+### Installation
+
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-2. プロジェクトをビルド:
-```bash
+# Build
 cargo build --release
+
+# Install (optional)
+cp target/release/aigpt ~/.cargo/bin/
 ```
 
-3. バイナリをパスの通った場所にコピー（オプション）:
+### CLI Usage
+
 ```bash
-cp target/release/aigpt $HOME/.cargo/bin/
+# Create a memory
+aigpt create "Remember this information"
+
+# List all memories
+aigpt list
+
+# Search memories
+aigpt search "keyword"
+
+# Show statistics
+aigpt stats
 ```
 
-4. Claude Code/Desktopに追加
+### MCP Integration with Claude Code
 
-```sh
-# Claude Codeの場合
-claude mcp add aigpt $HOME/.cargo/bin/aigpt server
-
-# または
-claude mcp add aigpt $HOME/.cargo/bin/aigpt serve
-```
-
-## 使用方法
-
-### ヘルプの表示
 ```bash
-aigpt --help
+# Add to Claude Code
+claude mcp add aigpt /path/to/aigpt/target/release/aigpt server
 ```
 
-### MCPサーバーとして起動
+## MCP Tools
+
+### Layer 1: Basic Memory (6 tools)
+- `create_memory` - Simple memory creation
+- `get_memory` - Retrieve by ID
+- `list_memories` - List all memories
+- `search_memories` - Content-based search
+- `update_memory` - Update existing memory
+- `delete_memory` - Remove memory
+
+### Layer 2: AI Memory (1 tool)
+- `create_ai_memory` - Create with AI interpretation and priority score
+
+### Layer 3: Personality Analysis (2 tools)
+- `save_user_analysis` - Save Big Five personality analysis
+- `get_user_analysis` - Retrieve latest personality profile
+
+### Layer 3.5: Integrated Profile (1 tool)
+- `get_profile` - **Primary tool**: Get integrated user profile with essential summary
+
+### Layer 4: Relationship Inference (2 tools, requires `--enable-layer4`)
+- `get_relationship` - Get inferred relationship with specific entity
+- `list_relationships` - List all relationships sorted by bond strength
+
+## Usage Examples in Claude Code
+
+### Layer 1: Simple Memory
+```
+Remember that the project deadline is next Friday.
+```
+Claude will use `create_memory` automatically.
+
+### Layer 2: AI Memory with Evaluation
+```
+create_ai_memory({
+  content: "Designed a new microservices architecture",
+  ai_interpretation: "Shows technical creativity and strategic thinking",
+  priority_score: 0.85
+})
+```
+
+### Layer 3: Personality Analysis
+```
+# After accumulating memories, analyze personality
+save_user_analysis({
+  openness: 0.8,
+  conscientiousness: 0.7,
+  extraversion: 0.4,
+  agreeableness: 0.65,
+  neuroticism: 0.3,
+  summary: "High creativity and planning ability, introverted personality"
+})
+
+# Retrieve analysis
+get_user_analysis()
+```
+
+### Layer 3.5: Integrated Profile (Recommended)
+```
+# Get essential user profile - AI's primary tool
+get_profile()
+
+# Returns:
+{
+  "dominant_traits": [
+    {"name": "openness", "score": 0.8},
+    {"name": "conscientiousness", "score": 0.7},
+    {"name": "extraversion", "score": 0.4}
+  ],
+  "core_interests": ["Rust", "architecture", "design", "system", "memory"],
+  "core_values": ["simplicity", "efficiency", "maintainability"],
+  "key_memory_ids": ["01H...", "01H...", ...],
+  "data_quality": 0.85
+}
+```
+
+**Usage Pattern:**
+- AI normally uses `get_profile()` to understand the user
+- For specific details, AI can call `get_memory(id)`, `list_memories()`, etc.
+- Profile auto-updates when needed (10+ memories, new analysis, or 7+ days)
+
+### Layer 4: Relationship Inference (Optional, requires `--enable-layer4`)
+```
+# Create memories with entity tracking
+Memory::new_with_entities({
+  content: "Had lunch with Alice",
+  ai_interpretation: "Pleasant social interaction",
+  priority_score: 0.7,
+  related_entities: ["alice"]
+})
+
+# Get relationship inference
+get_relationship({ entity_id: "alice" })
+
+# Returns:
+{
+  "entity_id": "alice",
+  "interaction_count": 15,
+  "avg_priority": 0.75,
+  "days_since_last": 2,
+  "bond_strength": 0.82,
+  "relationship_type": "close_friend",
+  "confidence": 0.80
+}
+
+# List all relationships
+list_relationships({ limit: 5 })
+```
+
+**Relationship Types:**
+- `close_friend` (0.8+): Very strong bond
+- `friend` (0.6-0.8): Strong connection
+- `valued_acquaintance` (0.4-0.6, high priority): Important but not close
+- `acquaintance` (0.4-0.6): Regular contact
+- `regular_contact` (0.2-0.4): Occasional interaction
+- `distant` (<0.2): Minimal connection
+
+**Starting the Server:**
 ```bash
-# MCPサーバー起動 (どちらでも可)
+# Normal mode (Layer 1-3.5 only)
 aigpt server
-aigpt serve
+
+# With relationship features (Layer 1-4)
+aigpt server --enable-layer4
 ```
 
-### ChatGPT会話のインポート
-```bash
-# ChatGPT conversations.jsonをインポート
-aigpt import path/to/conversations.json
-```
+## Big Five Personality Traits
 
-## Claude Desktop/Codeへの設定
+- **Openness**: Creativity, curiosity, openness to new experiences
+- **Conscientiousness**: Organization, planning, reliability
+- **Extraversion**: Social energy, assertiveness, outgoingness
+- **Agreeableness**: Cooperation, empathy, kindness
+- **Neuroticism**: Emotional stability (low = stable, high = sensitive)
 
-1. Claude Desktopの設定ファイルを開く:
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-   - Linux: `~/.config/Claude/claude_desktop_config.json`
+Scores range from 0.0 to 1.0, where higher scores indicate stronger trait expression.
 
-2. 以下の設定を追加:
-```json
-{
-  "mcpServers": {
-    "aigpt": {
-      "command": "/Users/syui/.cargo/bin/aigpt",
-      "args": ["server"]
-    }
-  }
-}
-```
+## Storage Location
 
-## 提供するMCPツール一覧
+All data stored in: `~/.config/syui/ai/gpt/memory.db`
 
-1. **create_memory** - 新しいメモリを作成
-2. **update_memory** - 既存のメモリを更新
-3. **delete_memory** - メモリを削除
-4. **search_memories** - メモリを検索
-5. **list_conversations** - インポートされた会話を一覧表示
+## Architecture
 
-## ツールの使用例
+Multi-layer system design:
 
-Claude Desktop/Codeで以下のように使用します：
+- **Layer 1** ✅ Complete: Pure memory storage (with entity tracking)
+- **Layer 2** ✅ Complete: AI interpretation with priority scoring
+- **Layer 3** ✅ Complete: Big Five personality analysis
+- **Layer 3.5** ✅ Complete: Integrated profile (unified summary)
+- **Layer 4** ✅ Complete: Relationship inference (optional, `--enable-layer4`)
+- **Layer 4+** 🔵 Future: Extended game/companion features
+- **Layer 5** 🔵 Future: Distribution and sharing
 
-### メモリの作成
-```
-MCPツールを使って「今日は良い天気です」というメモリーを作成してください
-```
+**Design Philosophy**:
+- **"Internal complexity, external simplicity"**: Simple API, complex internals
+- **"AI judges, tool records"**: AI makes decisions, tool stores data
+- **Layered architecture**: Each layer independent but interconnected
+- **Optional features**: Core layers always active, advanced layers opt-in
 
-### メモリの検索
-```
-MCPツールを使って「天気」に関するメモリーを検索してください
-```
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
 
-### 会話一覧の表示
-```
-MCPツールを使ってインポートした会話の一覧を表示してください
-```
+## Documentation
 
-## データ保存
+- [Architecture](docs/ARCHITECTURE.md) - Multi-layer system design
+- [Layer 1 Details](docs/LAYER1.md) - Technical details of memory storage
+- [Old Versions](docs/archive/old-versions/) - Previous documentation
 
-- デフォルトパス: `~/.config/syui/ai/gpt/memory.json`
-- JSONファイルでデータを保存
-- 自動的にディレクトリとファイルを作成
-
-### データ構造
-
-```json
-{
-  "memories": {
-    "uuid": {
-      "id": "uuid",
-      "content": "メモリーの内容",
-      "created_at": "2024-01-01T00:00:00Z",
-      "updated_at": "2024-01-01T00:00:00Z"
-    }
-  },
-  "conversations": {
-    "conversation_id": {
-      "id": "conversation_id",
-      "title": "会話のタイトル",
-      "created_at": "2024-01-01T00:00:00Z",
-      "message_count": 10
-    }
-  }
-}
-```
-
-## 開発
+## Development
 
 ```bash
-# 開発モードで実行
-cargo run -- server
-
-# ChatGPTインポートのテスト
-cargo run -- import json/conversations.json
-
-# テストの実行
+# Run tests
 cargo test
 
-# フォーマット
-cargo fmt
+# Build for release
+cargo build --release
 
-# Lintチェック
-cargo clippy
+# Run with verbose logging
+RUST_LOG=debug aigpt server
 ```
 
-## トラブルシューティング
+## Design Philosophy
 
-### MCPサーバーが起動しない
-```bash
-# バイナリが存在するか確認
-ls -la ~/.cargo/bin/aigpt
+**"AI evolves, tools don't"** - This tool provides simple, reliable storage while AI (Claude) handles interpretation, evaluation, and analysis. The tool focuses on being maintainable and stable.
 
-# 手動でテスト
-echo '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}' | aigpt server
-```
-
-### Claude Desktopでツールが見つからない
-1. Claude Desktopを完全に再起動
-2. 設定ファイルのパスが正しいか確認
-3. ログファイルを確認: `~/Library/Logs/Claude/mcp-server-aigpt.log`
-
-### インポートが失敗する
-```bash
-# JSONファイルの形式を確認
-head -100 conversations.json | jq '.[0] | keys'
-```
-
-## ライセンス
+## License
 
 MIT
+
+## Author
+
+syui

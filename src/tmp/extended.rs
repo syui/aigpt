@@ -210,6 +210,9 @@ impl ExtendedMCPServer {
             "memories": memories.into_iter().map(|m| json!({
                 "id": m.id,
                 "content": m.content,
+                "interpreted_content": m.interpreted_content,
+                "priority_score": m.priority_score,
+                "user_context": m.user_context,
                 "created_at": m.created_at,
                 "updated_at": m.updated_at
             })).collect::<Vec<_>>(),

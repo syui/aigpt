@@ -4,13 +4,28 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use uuid::Uuid;
+use crate::ai_interpreter::AIInterpreter;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Memory {
     pub id: String,
     pub content: String,
+    #[serde(default = "default_interpreted_content")]
+    pub interpreted_content: String,      // AI解釈後のコンテンツ
+    #[serde(default = "default_priority_score")]
+    pub priority_score: f32,               // 心理判定スコア (0.0-1.0)
+    #[serde(default)]
+    pub user_context: Option<String>,      // ユーザー固有性
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+fn default_interpreted_content() -> String {
+    String::new()
+}
+
+fn default_priority_score() -> f32 {
+    0.5
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,6 +82,10 @@ pub struct MemoryManager {
     memories: HashMap<String, Memory>,
     conversations: HashMap<String, Conversation>,
     data_file: PathBuf,
+    max_memories: usize,           // 最大記憶数
+    #[allow(dead_code)]
+    min_priority_score: f32,       // 最小優先度スコア (将来の機能で使用予定)
+    ai_interpreter: AIInterpreter, // AI解釈エンジン
 }
 
 impl MemoryManager {
@@ -91,23 +110,99 @@ impl MemoryManager {
             memories,
             conversations,
             data_file,
+            max_memories: 100,        // デフォルト: 100件
+            min_priority_score: 0.3,  // デフォルト: 0.3以上
+            ai_interpreter: AIInterpreter::new(),
         })
     }
 
     pub fn create_memory(&mut self, content: &str) -> Result<String> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now();
-        
+
         let memory = Memory {
             id: id.clone(),
             content: content.to_string(),
+            interpreted_content: content.to_string(), // 後でAI解釈を実装
+            priority_score: 0.5,                      // 後で心理判定を実装
+            user_context: None,
             created_at: now,
             updated_at: now,
         };
-        
+
         self.memories.insert(id.clone(), memory);
+
+        // 容量制限チェック
+        self.prune_memories_if_needed()?;
+
         self.save_data()?;
-        
+
+        Ok(id)
+    }
+
+    /// AI解釈と心理判定を使った記憶作成（後方互換性のため残す）
+    pub async fn create_memory_with_ai(
+        &mut self,
+        content: &str,
+        user_context: Option<&str>,
+    ) -> Result<String> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+
+        // AI解釈と心理判定を実行
+        let (interpreted_content, priority_score) = self
+            .ai_interpreter
+            .analyze(content, user_context)
+            .await?;
+
+        let memory = Memory {
+            id: id.clone(),
+            content: content.to_string(),
+            interpreted_content,
+            priority_score,
+            user_context: user_context.map(|s| s.to_string()),
+            created_at: now,
+            updated_at: now,
+        };
+
+        self.memories.insert(id.clone(), memory);
+
+        // 容量制限チェック
+        self.prune_memories_if_needed()?;
+
+        self.save_data()?;
+
+        Ok(id)
+    }
+
+    /// Claude Code から解釈とスコアを受け取ってメモリを作成
+    pub fn create_memory_with_interpretation(
+        &mut self,
+        content: &str,
+        interpreted_content: &str,
+        priority_score: f32,
+        user_context: Option<&str>,
+    ) -> Result<String> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+
+        let memory = Memory {
+            id: id.clone(),
+            content: content.to_string(),
+            interpreted_content: interpreted_content.to_string(),
+            priority_score: priority_score.max(0.0).min(1.0), // 0.0-1.0 に制限
+            user_context: user_context.map(|s| s.to_string()),
+            created_at: now,
+            updated_at: now,
+        };
+
+        self.memories.insert(id.clone(), memory);
+
+        // 容量制限チェック
+        self.prune_memories_if_needed()?;
+
+        self.save_data()?;
+
         Ok(id)
     }
 
@@ -129,6 +224,34 @@ impl MemoryManager {
         } else {
             Err(anyhow::anyhow!("Memory not found: {}", id))
         }
+    }
+
+    // 容量制限: 優先度が低いものから削除
+    fn prune_memories_if_needed(&mut self) -> Result<()> {
+        if self.memories.len() <= self.max_memories {
+            return Ok(());
+        }
+
+        // 優先度でソートして、低いものから削除
+        let mut sorted_memories: Vec<_> = self.memories.iter()
+            .map(|(id, mem)| (id.clone(), mem.priority_score))
+            .collect();
+
+        sorted_memories.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        let to_remove = self.memories.len() - self.max_memories;
+        for (id, _) in sorted_memories.iter().take(to_remove) {
+            self.memories.remove(id);
+        }
+
+        Ok(())
+    }
+
+    // 優先度順に記憶を取得
+    pub fn get_memories_by_priority(&self) -> Vec<&Memory> {
+        let mut memories: Vec<_> = self.memories.values().collect();
+        memories.sort_by(|a, b| b.priority_score.partial_cmp(&a.priority_score).unwrap_or(std::cmp::Ordering::Equal));
+        memories
     }
 
     pub fn search_memories(&self, query: &str) -> Vec<&Memory> {
@@ -216,6 +339,16 @@ impl MemoryManager {
             .context("Failed to parse data file")?;
         
         Ok((data.memories, data.conversations))
+    }
+
+    // Getter: 単一メモリ取得
+    pub fn get_memory(&self, id: &str) -> Option<&Memory> {
+        self.memories.get(id)
+    }
+
+    // Getter: 全メモリ取得
+    pub fn get_all_memories(&self) -> Vec<&Memory> {
+        self.memories.values().collect()
     }
 
     fn save_data(&self) -> Result<()> {
