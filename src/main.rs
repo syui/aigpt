@@ -16,7 +16,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Start MCP server
-    Server,
+    Server {
+        /// Enable Layer 4 relationship features (for games/companions)
+        #[arg(long)]
+        enable_layer4: bool,
+    },
 
     /// Create a new memory
     Create {
@@ -62,8 +66,8 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Server => {
-            let server = BaseMCPServer::new()?;
+        Commands::Server { enable_layer4 } => {
+            let server = BaseMCPServer::new(enable_layer4)?;
             server.run()?;
         }
 

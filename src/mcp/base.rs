@@ -6,12 +6,13 @@ use crate::core::{Memory, MemoryStore, UserAnalysis, RelationshipInference, infe
 
 pub struct BaseMCPServer {
     store: MemoryStore,
+    enable_layer4: bool,
 }
 
 impl BaseMCPServer {
-    pub fn new() -> Result<Self> {
+    pub fn new(enable_layer4: bool) -> Result<Self> {
         let store = MemoryStore::default()?;
-        Ok(BaseMCPServer { store })
+        Ok(BaseMCPServer { store, enable_layer4 })
     }
 
     pub fn run(&self) -> Result<()> {
@@ -85,7 +86,7 @@ impl BaseMCPServer {
     }
 
     fn get_available_tools(&self) -> Vec<Value> {
-        vec![
+        let mut tools = vec![
             json!({
                 "name": "create_memory",
                 "description": "Create a new memory entry (Layer 1: simple storage)",
@@ -252,34 +253,42 @@ impl BaseMCPServer {
                     "properties": {}
                 }
             }),
-            json!({
-                "name": "get_relationship",
-                "description": "Get inferred relationship with a specific entity (Layer 4). Analyzes memories and user profile to infer bond strength and relationship type. Use only when game/relationship features are active.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "entity_id": {
-                            "type": "string",
-                            "description": "Entity identifier (e.g., 'alice', 'companion_miku')"
-                        }
-                    },
-                    "required": ["entity_id"]
-                }
-            }),
-            json!({
-                "name": "list_relationships",
-                "description": "List all inferred relationships sorted by bond strength (Layer 4). Returns relationships with all tracked entities. Use only when game/relationship features are active.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "limit": {
-                            "type": "number",
-                            "description": "Maximum number of relationships to return (default: 10)"
+        ];
+
+        // Layer 4 tools (optional - only when enabled)
+        if self.enable_layer4 {
+            tools.extend(vec![
+                json!({
+                    "name": "get_relationship",
+                    "description": "Get inferred relationship with a specific entity (Layer 4). Analyzes memories and user profile to infer bond strength and relationship type. Use only when game/relationship features are active.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "entity_id": {
+                                "type": "string",
+                                "description": "Entity identifier (e.g., 'alice', 'companion_miku')"
+                            }
+                        },
+                        "required": ["entity_id"]
+                    }
+                }),
+                json!({
+                    "name": "list_relationships",
+                    "description": "List all inferred relationships sorted by bond strength (Layer 4). Returns relationships with all tracked entities. Use only when game/relationship features are active.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "limit": {
+                                "type": "number",
+                                "description": "Maximum number of relationships to return (default: 10)"
+                            }
                         }
                     }
-                }
-            }),
-        ]
+                }),
+            ]);
+        }
+
+        tools
     }
 
     fn handle_tools_call(&self, request: Value, id: Value) -> Value {
@@ -312,8 +321,23 @@ impl BaseMCPServer {
             "save_user_analysis" => self.tool_save_user_analysis(arguments),
             "get_user_analysis" => self.tool_get_user_analysis(),
             "get_profile" => self.tool_get_profile(),
-            "get_relationship" => self.tool_get_relationship(arguments),
-            "list_relationships" => self.tool_list_relationships(arguments),
+
+            // Layer 4 tools (require --enable-layer4 flag)
+            "get_relationship" | "list_relationships" => {
+                if !self.enable_layer4 {
+                    return json!({
+                        "success": false,
+                        "error": "Layer 4 is not enabled. Start server with --enable-layer4 flag to use relationship features."
+                    });
+                }
+
+                match tool_name {
+                    "get_relationship" => self.tool_get_relationship(arguments),
+                    "list_relationships" => self.tool_list_relationships(arguments),
+                    _ => unreachable!(),
+                }
+            }
+
             _ => json!({
                 "success": false,
                 "error": format!("Unknown tool: {}", tool_name)
