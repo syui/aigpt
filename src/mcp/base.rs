@@ -244,6 +244,14 @@ impl BaseMCPServer {
                     "properties": {}
                 }
             }),
+            json!({
+                "name": "get_profile",
+                "description": "Get integrated user profile - the essential summary of personality, interests, and values (Layer 3.5). This is the primary tool for understanding the user.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }),
         ]
     }
 
@@ -276,6 +284,7 @@ impl BaseMCPServer {
             "delete_memory" => self.tool_delete_memory(arguments),
             "save_user_analysis" => self.tool_save_user_analysis(arguments),
             "get_user_analysis" => self.tool_get_user_analysis(),
+            "get_profile" => self.tool_get_profile(),
             _ => json!({
                 "success": false,
                 "error": format!("Unknown tool: {}", tool_name)
@@ -481,6 +490,26 @@ impl BaseMCPServer {
                 "success": true,
                 "analysis": null,
                 "message": "No analysis found. Run personality analysis first."
+            }),
+            Err(e) => json!({
+                "success": false,
+                "error": e.to_string()
+            }),
+        }
+    }
+
+    fn tool_get_profile(&self) -> Value {
+        match self.store.get_profile() {
+            Ok(profile) => json!({
+                "success": true,
+                "profile": {
+                    "dominant_traits": profile.dominant_traits,
+                    "core_interests": profile.core_interests,
+                    "core_values": profile.core_values,
+                    "key_memory_ids": profile.key_memory_ids,
+                    "data_quality": profile.data_quality,
+                    "last_updated": profile.last_updated
+                }
             }),
             Err(e) => json!({
                 "success": false,

@@ -82,6 +82,16 @@ impl MemoryStore {
             [],
         )?;
 
+        // Create user_profiles table (Layer 3.5 - integrated profile cache)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS user_profiles (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                data TEXT NOT NULL,
+                last_updated TEXT NOT NULL
+            )",
+            [],
+        )?;
+
         Ok(Self { conn })
     }
 
@@ -365,6 +375,60 @@ impl MemoryStore {
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(analyses)
+    }
+
+    // === Layer 3.5: Integrated Profile ===
+
+    /// Save integrated profile to cache
+    pub fn save_profile(&self, profile: &super::profile::UserProfile) -> Result<()> {
+        let profile_json = serde_json::to_string(profile)?;
+
+        self.conn.execute(
+            "INSERT OR REPLACE INTO user_profiles (id, data, last_updated) VALUES (1, ?1, ?2)",
+            params![profile_json, profile.last_updated.to_rfc3339()],
+        )?;
+
+        Ok(())
+    }
+
+    /// Get cached profile if exists
+    pub fn get_cached_profile(&self) -> Result<Option<super::profile::UserProfile>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT data FROM user_profiles WHERE id = 1")?;
+
+        let result = stmt.query_row([], |row| {
+            let json: String = row.get(0)?;
+            Ok(json)
+        });
+
+        match result {
+            Ok(json) => {
+                let profile: super::profile::UserProfile = serde_json::from_str(&json)?;
+                Ok(Some(profile))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Get or generate profile (with automatic caching)
+    pub fn get_profile(&self) -> Result<super::profile::UserProfile> {
+        // Check cache first
+        if let Some(cached) = self.get_cached_profile()? {
+            // Check if needs update
+            if !cached.needs_update(self)? {
+                return Ok(cached);
+            }
+        }
+
+        // Generate new profile
+        let profile = super::profile::UserProfile::generate(self)?;
+
+        // Cache it
+        self.save_profile(&profile)?;
+
+        Ok(profile)
     }
 }
 
