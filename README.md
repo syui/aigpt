@@ -2,7 +2,7 @@
 
 AI memory system with psychological analysis for Claude via MCP.
 
-**Current: Layers 1-3 Complete** - Memory storage, AI interpretation, and personality analysis.
+**Current: Layers 1-3.5 Complete** - Memory storage, AI interpretation, personality analysis, and integrated profile.
 
 ## Features
 
@@ -21,6 +21,12 @@ AI memory system with psychological analysis for Claude via MCP.
 - 🔬 **Big Five Model**: Scientifically validated personality assessment
 - 📈 **Pattern Recognition**: Analyzes memory patterns to build user profile
 - 💾 **Historical Tracking**: Save and compare analyses over time
+
+### Layer 3.5: Integrated Profile
+- 🎯 **Essential Summary**: Unified view of personality, interests, and values
+- 🤖 **AI-Optimized**: Primary tool for AI to understand the user
+- ⚡ **Smart Caching**: Auto-updates only when necessary
+- 🔍 **Flexible Access**: Detailed data still accessible when needed
 
 ### General
 - 🛠️ **MCP Integration**: Works seamlessly with Claude Code
@@ -79,6 +85,9 @@ claude mcp add aigpt /path/to/aigpt/target/release/aigpt server
 - `save_user_analysis` - Save Big Five personality analysis
 - `get_user_analysis` - Retrieve latest personality profile
 
+### Layer 3.5: Integrated Profile (1 tool)
+- `get_profile` - **Primary tool**: Get integrated user profile with essential summary
+
 ## Usage Examples in Claude Code
 
 ### Layer 1: Simple Memory
@@ -112,6 +121,30 @@ save_user_analysis({
 get_user_analysis()
 ```
 
+### Layer 3.5: Integrated Profile (Recommended)
+```
+# Get essential user profile - AI's primary tool
+get_profile()
+
+# Returns:
+{
+  "dominant_traits": [
+    {"name": "openness", "score": 0.8},
+    {"name": "conscientiousness", "score": 0.7},
+    {"name": "extraversion", "score": 0.4}
+  ],
+  "core_interests": ["Rust", "architecture", "design", "system", "memory"],
+  "core_values": ["simplicity", "efficiency", "maintainability"],
+  "key_memory_ids": ["01H...", "01H...", ...],
+  "data_quality": 0.85
+}
+```
+
+**Usage Pattern:**
+- AI normally uses `get_profile()` to understand the user
+- For specific details, AI can call `get_memory(id)`, `list_memories()`, etc.
+- Profile auto-updates when needed (10+ memories, new analysis, or 7+ days)
+
 ## Big Five Personality Traits
 
 - **Openness**: Creativity, curiosity, openness to new experiences
@@ -133,8 +166,14 @@ Multi-layer system design:
 - **Layer 1** ✅ Complete: Pure memory storage
 - **Layer 2** ✅ Complete: AI interpretation with priority scoring
 - **Layer 3** ✅ Complete: Big Five personality analysis
+- **Layer 3.5** ✅ Complete: Integrated profile (unified summary)
 - **Layer 4** 🔵 Planned: Game systems and companion features
 - **Layer 5** 🔵 Future: Distribution and sharing
+
+**Design Philosophy**: "Internal complexity, external simplicity"
+- Layers 1-3 handle detailed data collection and analysis
+- Layer 3.5 provides a simple, unified view for AI consumption
+- Detailed data remains accessible when needed
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
 

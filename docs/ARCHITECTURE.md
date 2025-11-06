@@ -21,6 +21,9 @@ aigptは、独立したレイヤーを積み重ねる設計です。各レイヤ
 │  Layer 4a: Game Systems                │  🔵 Planned
 │  (Ranking, rarity, XP, visualization)   │
 ├─────────────────────────────────────────┤
+│  Layer 3.5: Integrated Profile         │  ✅ Complete
+│  (Unified summary for AI consumption)   │
+├─────────────────────────────────────────┤
 │  Layer 3: User Evaluation              │  ✅ Complete
 │  (Big Five personality analysis)        │
 ├─────────────────────────────────────────┤
@@ -171,6 +174,127 @@ pub struct UserAnalysis {
 
 ---
 
+## Layer 3.5: Integrated Profile
+
+**Status**: ✅ **Complete**
+
+### Purpose
+Layer 1-3のデータを統合し、本質のみを抽出した統一プロファイル。「内部は複雑、表面はシンプル」の設計哲学を実現。
+
+### Problem Solved
+Layer 1-3は独立して動作するが、バラバラのデータをAIが毎回解釈する必要があった。Layer 3.5は統合された1つの答えを提供し、効率性とシンプルさを両立。
+
+### Data Model
+```rust
+pub struct UserProfile {
+    // 性格の本質（Big Five上位3特性）
+    pub dominant_traits: Vec<TraitScore>,
+
+    // 関心の核心（最頻出トピック5個）
+    pub core_interests: Vec<String>,
+
+    // 価値観の核心（高priority メモリから抽出、5個）
+    pub core_values: Vec<String>,
+
+    // 重要メモリID（証拠、上位10個）
+    pub key_memory_ids: Vec<String>,
+
+    // データ品質（0.0-1.0、メモリ数と分析有無で算出）
+    pub data_quality: f32,
+
+    pub last_updated: DateTime<Utc>,
+}
+
+pub struct TraitScore {
+    pub name: String,    // "openness", "conscientiousness", etc.
+    pub score: f32,      // 0.0-1.0
+}
+```
+
+### Integration Logic
+
+**1. Dominant Traits Extraction**
+- Big Fiveから上位3特性を自動選択
+- スコアでソート
+
+**2. Core Interests Extraction**
+- メモリコンテンツから頻度分析
+- AI interpretationは2倍の重み
+- 上位5個を抽出
+
+**3. Core Values Extraction**
+- priority_score >= 0.7 のメモリから抽出
+- 価値関連キーワードをフィルタリング
+- 上位5個を抽出
+
+**4. Key Memories**
+- priority_scoreでソート
+- 上位10個のIDを保持（証拠として）
+
+**5. Data Quality Score**
+- メモリ数: 50個で1.0（それ以下は比例）
+- 性格分析あり: +0.5
+- 加重平均で算出
+
+### Caching Strategy
+
+**Storage**: SQLite `user_profiles` テーブル（1行のみ）
+
+**Update Triggers**:
+1. 10個以上の新しいメモリ追加
+2. 新しい性格分析の保存
+3. 7日以上経過
+
+**Flow**:
+```
+get_profile()
+  ↓
+キャッシュ確認
+  ↓
+更新必要？ → No → キャッシュを返す
+  ↓ Yes
+Layer 1-3から再生成
+  ↓
+キャッシュ更新
+  ↓
+新しいプロファイルを返す
+```
+
+### MCP Tools
+- `get_profile` - **Primary tool**: Get integrated profile
+
+### Usage Pattern
+
+**通常使用（効率的）**:
+```
+AI: get_profile()を呼ぶ
+→ ユーザーの本質を理解
+→ 適切な応答を生成
+```
+
+**詳細確認（必要時）**:
+```
+AI: get_profile()で概要を把握
+→ 疑問がある
+→ get_memory(id)で詳細確認
+→ list_memories()で全体確認
+```
+
+### Design Philosophy
+
+**"Internal complexity, external simplicity"**
+- 内部: 複雑な分析、頻度計算、重み付け
+- 表面: シンプルな1つのJSON
+- AIは基本的にget_profile()のみ参照
+- 柔軟性: 詳細データへのアクセスも可能
+
+**Efficiency**:
+- 頻繁な再計算を避ける（キャッシング）
+- 必要時のみ更新（スマートトリガー）
+- AI が迷わない（1つの明確な答え）
+
+---
+
 ## Layer 4a: Game Systems
 
 **Status**: 🔵 **Planned**
@@ -264,6 +388,16 @@ pub struct Companion {
 - [x] `get_user_analysis` tool
 - [x] Historical tracking support
 
+### Phase 3.5: Layer 3.5 ✅ (Complete)
+- [x] UserProfile data structure
+- [x] Integration logic (traits, interests, values)
+- [x] Frequency analysis for topic extraction
+- [x] Value keyword extraction
+- [x] Data quality scoring
+- [x] Caching mechanism (user_profiles table)
+- [x] Smart update triggers
+- [x] `get_profile` MCP tool
+
 ### Phase 4: Layers 4-5 (Next)
 - [ ] Game mechanics (Layer 4a)
 - [ ] Companion system (Layer 4b)
@@ -337,16 +471,27 @@ pub struct Companion {
 
 ```
 src/
-├── core/           # Layer 1: Pure storage
-├── ai/             # Layer 2: AI features (future)
-├── evaluation/     # Layer 3: User diagnosis (future)
-├── game/           # Layer 4a: Game systems (future)
-├── companion/      # Layer 4b: Companion (future)
-└── mcp/            # MCP server (all layers)
+├── core/
+│   ├── memory.rs      # Layer 1: Memory struct
+│   ├── store.rs       # Layer 1-3.5: SQLite operations
+│   ├── analysis.rs    # Layer 3: UserAnalysis (Big Five)
+│   ├── profile.rs     # Layer 3.5: UserProfile (integrated)
+│   ├── error.rs       # Error types
+│   └── mod.rs         # Module exports
+├── mcp/
+│   ├── base.rs        # MCP server (all layers)
+│   └── mod.rs         # Module exports
+├── lib.rs             # Library root
+└── main.rs            # CLI application
 ```
+
+**Future layers**:
+- Layer 4a: `src/game/` - Game systems
+- Layer 4b: `src/companion/` - Companion features
+- Layer 5: `src/distribution/` - Sharing mechanisms
 
 ---
 
 **Version**: 0.2.0
 **Last Updated**: 2025-11-06
-**Current Status**: Layers 1-3 Complete, Layer 4 Planned
+**Current Status**: Layers 1-3.5 Complete, Layer 4 Planned
