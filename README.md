@@ -2,7 +2,7 @@
 
 AI memory system with psychological analysis for Claude via MCP.
 
-**Current: Layers 1-3.5 Complete** - Memory storage, AI interpretation, personality analysis, and integrated profile.
+**Current: Layers 1-4 Complete** - Memory storage, AI interpretation, personality analysis, integrated profile, and relationship inference.
 
 ## Features
 
@@ -27,6 +27,12 @@ AI memory system with psychological analysis for Claude via MCP.
 - 🤖 **AI-Optimized**: Primary tool for AI to understand the user
 - ⚡ **Smart Caching**: Auto-updates only when necessary
 - 🔍 **Flexible Access**: Detailed data still accessible when needed
+
+### Layer 4: Relationship Inference (Optional)
+- 🤝 **Relationship Tracking**: Track interactions with entities (people, characters, etc.)
+- 📊 **Bond Strength**: Infer relationship strength from memory patterns
+- 🎮 **Game Ready**: Foundation for companion apps, games, VTubers
+- 🔒 **Opt-in**: Enable only when needed with `--enable-layer4` flag
 
 ### General
 - 🛠️ **MCP Integration**: Works seamlessly with Claude Code
@@ -88,6 +94,10 @@ claude mcp add aigpt /path/to/aigpt/target/release/aigpt server
 ### Layer 3.5: Integrated Profile (1 tool)
 - `get_profile` - **Primary tool**: Get integrated user profile with essential summary
 
+### Layer 4: Relationship Inference (2 tools, requires `--enable-layer4`)
+- `get_relationship` - Get inferred relationship with specific entity
+- `list_relationships` - List all relationships sorted by bond strength
+
 ## Usage Examples in Claude Code
 
 ### Layer 1: Simple Memory
@@ -145,6 +155,51 @@ get_profile()
 - For specific details, AI can call `get_memory(id)`, `list_memories()`, etc.
 - Profile auto-updates when needed (10+ memories, new analysis, or 7+ days)
 
+### Layer 4: Relationship Inference (Optional, requires `--enable-layer4`)
+```
+# Create memories with entity tracking
+Memory::new_with_entities({
+  content: "Had lunch with Alice",
+  ai_interpretation: "Pleasant social interaction",
+  priority_score: 0.7,
+  related_entities: ["alice"]
+})
+
+# Get relationship inference
+get_relationship({ entity_id: "alice" })
+
+# Returns:
+{
+  "entity_id": "alice",
+  "interaction_count": 15,
+  "avg_priority": 0.75,
+  "days_since_last": 2,
+  "bond_strength": 0.82,
+  "relationship_type": "close_friend",
+  "confidence": 0.80
+}
+
+# List all relationships
+list_relationships({ limit: 5 })
+```
+
+**Relationship Types:**
+- `close_friend` (0.8+): Very strong bond
+- `friend` (0.6-0.8): Strong connection
+- `valued_acquaintance` (0.4-0.6, high priority): Important but not close
+- `acquaintance` (0.4-0.6): Regular contact
+- `regular_contact` (0.2-0.4): Occasional interaction
+- `distant` (<0.2): Minimal connection
+
+**Starting the Server:**
+```bash
+# Normal mode (Layer 1-3.5 only)
+aigpt server
+
+# With relationship features (Layer 1-4)
+aigpt server --enable-layer4
+```
+
 ## Big Five Personality Traits
 
 - **Openness**: Creativity, curiosity, openness to new experiences
@@ -163,17 +218,19 @@ All data stored in: `~/.config/syui/ai/gpt/memory.db`
 
 Multi-layer system design:
 
-- **Layer 1** ✅ Complete: Pure memory storage
+- **Layer 1** ✅ Complete: Pure memory storage (with entity tracking)
 - **Layer 2** ✅ Complete: AI interpretation with priority scoring
 - **Layer 3** ✅ Complete: Big Five personality analysis
 - **Layer 3.5** ✅ Complete: Integrated profile (unified summary)
-- **Layer 4** 🔵 Planned: Game systems and companion features
+- **Layer 4** ✅ Complete: Relationship inference (optional, `--enable-layer4`)
+- **Layer 4+** 🔵 Future: Extended game/companion features
 - **Layer 5** 🔵 Future: Distribution and sharing
 
-**Design Philosophy**: "Internal complexity, external simplicity"
-- Layers 1-3 handle detailed data collection and analysis
-- Layer 3.5 provides a simple, unified view for AI consumption
-- Detailed data remains accessible when needed
+**Design Philosophy**:
+- **"Internal complexity, external simplicity"**: Simple API, complex internals
+- **"AI judges, tool records"**: AI makes decisions, tool stores data
+- **Layered architecture**: Each layer independent but interconnected
+- **Optional features**: Core layers always active, advanced layers opt-in
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
 

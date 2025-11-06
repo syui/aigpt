@@ -15,11 +15,11 @@ aigptは、独立したレイヤーを積み重ねる設計です。各レイヤ
 │  Layer 5: Distribution & Sharing       │  🔵 Future
 │  (Game streaming, public/private)      │
 ├─────────────────────────────────────────┤
-│  Layer 4b: AI Companion                │  🔵 Planned
-│  (Romance system, personality growth)   │
+│  Layer 4+: Extended Features          │  🔵 Planned
+│  (Advanced game/companion systems)      │
 ├─────────────────────────────────────────┤
-│  Layer 4a: Game Systems                │  🔵 Planned
-│  (Ranking, rarity, XP, visualization)   │
+│  Layer 4: Relationship Inference       │  ✅ Complete
+│  (Bond strength, relationship types)    │  (Optional)
 ├─────────────────────────────────────────┤
 │  Layer 3.5: Integrated Profile         │  ✅ Complete
 │  (Unified summary for AI consumption)   │
@@ -31,7 +31,7 @@ aigptは、独立したレイヤーを積み重ねる設計です。各レイヤ
 │  (Claude interpretation, priority_score)│
 ├─────────────────────────────────────────┤
 │  Layer 1: Pure Memory Storage          │  ✅ Complete
-│  (SQLite, ULID, CRUD operations)       │
+│  (SQLite, ULID, entity tracking)       │
 └─────────────────────────────────────────┘
 ```
 
@@ -51,12 +51,15 @@ aigptは、独立したレイヤーを積み重ねる設計です。各レイヤ
 ### Data Model
 ```rust
 pub struct Memory {
-    pub id: String,              // ULID
-    pub content: String,         // User content
+    pub id: String,                           // ULID
+    pub content: String,                      // User content
+    pub related_entities: Option<Vec<String>>, // Who/what this memory involves (Layer 4)
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 ```
+
+**Note**: `related_entities` added for Layer 4 support. Optional and backward compatible.
 
 ### Operations
 - `create()` - Insert new memory
@@ -295,9 +298,119 @@ AI: get_profile()で概要を把握
 
 ---
 
-## Layer 4a: Game Systems
+## Layer 4: Relationship Inference
+
+**Status**: ✅ **Complete** (Optional feature)
+
+### Purpose
+Layer 1-3.5のデータから関係性を推測。ゲーム、コンパニオン、VTuberなどの外部アプリケーション向け。
+
+### Activation
+CLI引数で明示的に有効化:
+```bash
+aigpt server --enable-layer4
+```
+
+デフォルトでは無効（Layer 1-3.5のみ）。
+
+### Data Model
+```rust
+pub struct RelationshipInference {
+    pub entity_id: String,
+    pub interaction_count: u32,     // この entity とのメモリ数
+    pub avg_priority: f32,          // 平均重要度
+    pub days_since_last: i64,       // 最終接触からの日数
+    pub bond_strength: f32,         // 関係の強さ (0.0-1.0)
+    pub relationship_type: String,  // close_friend, friend, etc.
+    pub confidence: f32,            // 推測の信頼度 (0.0-1.0)
+    pub inferred_at: DateTime<Utc>,
+}
+```
+
+### Inference Logic
+
+**1. データ収集**:
+- Layer 1から entity に関連するメモリを抽出
+- Layer 3.5からユーザー性格プロファイルを取得
+
+**2. Bond Strength 計算**:
+```rust
+if user.extraversion < 0.5 {
+    // 内向的: 少数の深い関係を好む
+    // 回数が重要
+    bond = interaction_count * 0.6 + avg_priority * 0.4
+} else {
+    // 外向的: 多数の浅い関係
+    // 質が重要
+    bond = interaction_count * 0.4 + avg_priority * 0.6
+}
+```
+
+**3. Relationship Type 分類**:
+- `close_friend` (0.8+): 非常に強い絆
+- `friend` (0.6-0.8): 強い繋がり
+- `valued_acquaintance` (0.4-0.6, 高priority): 重要だが親密ではない
+- `acquaintance` (0.4-0.6): 定期的な接触
+- `regular_contact` (0.2-0.4): 時々の接触
+- `distant` (<0.2): 最小限の繋がり
+
+**4. Confidence 計算**:
+- データ量に基づく信頼度
+- 1-2回: 0.2-0.3 (低)
+- 5回: 0.5 (中)
+- 10回以上: 0.8+ (高)
+
+### Design Philosophy
+
+**推測のみ、保存なし**:
+- 毎回Layer 1-3.5から計算
+- キャッシュなし（シンプルさ優先）
+- 後でキャッシング追加可能
+
+**独立性**:
+- Layer 1-3.5に依存
+- Layer 1-3.5から独立（オプション機能）
+- 有効化しなければ完全に無視される
+
+**外部アプリケーション向け**:
+- aigptはバックエンド（推測エンジン）
+- フロントエンド（ゲーム、コンパニオン等）が表示を担当
+- MCPで繋がる
+
+### MCP Tools
+- `get_relationship(entity_id)` - 特定entity との関係を取得
+- `list_relationships(limit)` - 全関係をbond_strength順でリスト
+
+### Usage Example
+```
+# サーバー起動（Layer 4有効）
+aigpt server --enable-layer4
+
+# 関係性取得
+get_relationship({ entity_id: "alice" })
+
+# 結果:
+{
+  "bond_strength": 0.82,
+  "relationship_type": "close_friend",
+  "interaction_count": 15,
+  "confidence": 0.80
+}
+```
+
+---
+
+## Layer 4+: Extended Features
 
 **Status**: 🔵 **Planned**
+
+Advanced game and companion system features to be designed based on Layer 4 foundation.
+
+---
+
+## Layer 4a: Game Systems (Archive)
+
+**Status**: 🔵 **Archived Concept**
 
 ### Purpose
 ゲーム的要素で記憶管理を楽しく。
@@ -398,9 +511,20 @@ pub struct Companion {
 - [x] Smart update triggers
 - [x] `get_profile` MCP tool
 
-### Phase 4: Layers 4-5 (Next)
-- [ ] Game mechanics (Layer 4a)
-- [ ] Companion system (Layer 4b)
+### Phase 4: Layer 4 ✅ (Complete)
+- [x] Add `related_entities` to Layer 1 Memory struct
+- [x] Database migration for backward compatibility
+- [x] RelationshipInference data structure
+- [x] Bond strength calculation (personality-aware)
+- [x] Relationship type classification
+- [x] Confidence scoring
+- [x] `get_relationship` MCP tool
+- [x] `list_relationships` MCP tool
+- [x] CLI control flag (`--enable-layer4`)
+- [x] Tool visibility control
+
+### Phase 5: Layers 4+ and 5 (Future)
+- [ ] Extended game/companion features (Layer 4+)
 - [ ] Sharing mechanisms (Layer 5)
 - [ ] Public/private modes (Layer 5)
 
@@ -472,26 +596,26 @@ pub struct Companion {
 ```
 src/
 ├── core/
-│   ├── memory.rs      # Layer 1: Memory struct
-│   ├── store.rs       # Layer 1-3.5: SQLite operations
+│   ├── memory.rs      # Layer 1: Memory struct (with related_entities)
+│   ├── store.rs       # Layer 1-4: SQLite operations
 │   ├── analysis.rs    # Layer 3: UserAnalysis (Big Five)
 │   ├── profile.rs     # Layer 3.5: UserProfile (integrated)
+│   ├── relationship.rs # Layer 4: RelationshipInference
 │   ├── error.rs       # Error types
 │   └── mod.rs         # Module exports
 ├── mcp/
-│   ├── base.rs        # MCP server (all layers)
+│   ├── base.rs        # MCP server (all layers, with --enable-layer4)
 │   └── mod.rs         # Module exports
 ├── lib.rs             # Library root
-└── main.rs            # CLI application
+└── main.rs            # CLI application (with layer4 flag)
 ```
 
 **Future layers**:
-- Layer 4a: `src/game/` - Game systems
-- Layer 4b: `src/companion/` - Companion features
+- Layer 4+: `src/game/` - Extended game/companion systems
 - Layer 5: `src/distribution/` - Sharing mechanisms
 
 ---
 
-**Version**: 0.2.0
+**Version**: 0.3.0
 **Last Updated**: 2025-11-06
-**Current Status**: Layers 1-3.5 Complete, Layer 4 Planned
+**Current Status**: Layers 1-4 Complete (Layer 4 opt-in with --enable-layer4)
