@@ -1,15 +1,26 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use std::fs;
 use std::path::PathBuf;
 
 use chrono::Utc;
 
-#[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub path: Option<String>,
     pub did: Option<String>,
     pub handle: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ConfigFile {
+    bot: Option<BotConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BotConfig {
+    did: Option<String>,
+    handle: Option<String>,
+    path: Option<String>,
 }
 
 pub fn config_file() -> PathBuf {
@@ -19,15 +30,30 @@ pub fn config_file() -> PathBuf {
         .join("config.json")
 }
 
-pub fn load() -> Config {
-    let path = config_file();
-    match fs::read_to_string(&path) {
-        Ok(content) => serde_json::from_str(&content).unwrap_or(defaults()),
-        Err(_) => defaults(),
+fn expand_path(p: &str) -> PathBuf {
+    if p.starts_with("~/") {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(&p[2..])
+    } else {
+        PathBuf::from(p)
     }
 }
 
-fn defaults() -> Config {
+pub fn load() -> Config {
+    let cfg_path = config_file();
+    if let Ok(content) = fs::read_to_string(&cfg_path) {
+        if let Ok(file) = serde_json::from_str::<ConfigFile>(&content) {
+            if let Some(bot) = file.bot {
+                return Config {
+                    path: bot.path,
+                    did: bot.did,
+                    handle: bot.handle,
+                };
+            }
+        }
+    }
+
     Config {
         path: None,
         did: None,
@@ -42,9 +68,11 @@ pub fn init() {
             let _ = fs::create_dir_all(parent);
         }
         let default_cfg = json!({
-            "path": null,
-            "did": null,
-            "handle": null
+            "bot": {
+                "did": null,
+                "handle": null,
+                "path": null
+            }
         });
         let _ = fs::write(&cfg_path, serde_json::to_string_pretty(&default_cfg).unwrap());
     }
@@ -80,15 +108,7 @@ pub fn init() {
 
 pub fn base_dir(cfg: &Config) -> PathBuf {
     match &cfg.path {
-        Some(p) => {
-            if p.starts_with("~/") {
-                dirs::home_dir()
-                    .unwrap_or_else(|| PathBuf::from("."))
-                    .join(&p[2..])
-            } else {
-                PathBuf::from(p)
-            }
-        }
+        Some(p) => expand_path(p),
         None => dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("ai.syui.gpt"),
