@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use std::process::Command;
 
 use aigpt::core::{config, reader, writer};
 use aigpt::mcp::MCPServer;
@@ -15,6 +16,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Initial setup: clone repo, link config, register MCP
+    Setup,
+
     /// Start MCP server (JSON-RPC over stdio)
     Server,
 
@@ -32,8 +36,13 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
-    config::init();
     let cli = Cli::parse();
+
+    if let Some(Commands::Setup) = &cli.command {
+        return run_setup();
+    }
+
+    config::init();
 
     match cli.command {
         None => {
@@ -65,9 +74,99 @@ fn main() -> Result<()> {
             writer::save_memory(&content)?;
             println!("Saved. ({} records)", reader::memory_count());
         }
+
+        Some(Commands::Setup) => unreachable!(),
     }
 
     Ok(())
+}
+
+fn run_setup() -> Result<()> {
+    let home = dirs::home_dir().expect("Cannot find home directory");
+    let ai_dir = home.join("ai");
+    let log_dir = ai_dir.join("log");
+    let cfg_dir = config::config_file()
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let cfg_file = config::config_file();
+    let site_config = log_dir.join("public").join("config.json");
+    let aigpt_bin = std::env::current_exe().unwrap_or_else(|_| "aigpt".into());
+
+    // 1. ~/ai/
+    std::fs::create_dir_all(&ai_dir)?;
+    println!("ok {}/", ai_dir.display());
+
+    // 2. git clone
+    if !log_dir.exists() {
+        println!("cloning ai/log...");
+        let status = Command::new("git")
+            .args(["clone", "https://git.syui.ai/ai/log"])
+            .current_dir(&ai_dir)
+            .status()?;
+        if !status.success() {
+            anyhow::bail!("git clone failed");
+        }
+        println!("ok {}/", log_dir.display());
+    } else {
+        println!("skip {} (exists)", log_dir.display());
+    }
+
+    // 3. config symlink
+    std::fs::create_dir_all(&cfg_dir)?;
+    if !cfg_file.exists() {
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&site_config, &cfg_file)?;
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(&site_config, &cfg_file)?;
+        println!("ok {} -> {}", cfg_file.display(), site_config.display());
+    } else if cfg_file.is_symlink() {
+        let target = std::fs::read_link(&cfg_file)?;
+        if target == site_config {
+            println!("skip {} (linked)", cfg_file.display());
+        } else {
+            println!("skip {} (symlink -> {})", cfg_file.display(), target.display());
+        }
+    } else {
+        println!("skip {} (exists)", cfg_file.display());
+    }
+
+    // 4. init data dirs
+    config::init();
+    println!("ok data initialized");
+
+    // 5. claude mcp add
+    if is_command_available("claude") {
+        let status = Command::new("claude")
+            .args([
+                "mcp", "add",
+                "--transport", "stdio",
+                "aigpt",
+                "--scope", "user",
+                "--",
+            ])
+            .arg(&aigpt_bin)
+            .arg("server")
+            .status()?;
+        if status.success() {
+            println!("ok claude mcp add aigpt");
+        } else {
+            println!("warn claude mcp add failed");
+        }
+    } else {
+        println!("skip claude mcp add (claude not found)");
+    }
+
+    println!("\ndone.");
+    Ok(())
+}
+
+fn is_command_available(cmd: &str) -> bool {
+    Command::new("which")
+        .arg(cmd)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 fn print_status() {
