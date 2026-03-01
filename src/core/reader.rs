@@ -5,7 +5,7 @@ use std::path::PathBuf;
 fn config_dir() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("aigpt")
+        .join("ai.syui.gpt")
 }
 
 pub fn read_core() -> Result<String> {
