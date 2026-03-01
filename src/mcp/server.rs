@@ -61,6 +61,7 @@ impl MCPServer {
     }
 
     fn handle_initialize(&self, id: Value) -> Value {
+        let instructions = self.build_instructions();
         json!({
             "jsonrpc": "2.0",
             "id": id,
@@ -72,9 +73,32 @@ impl MCPServer {
                 "serverInfo": {
                     "name": "aigpt",
                     "version": "0.3.0"
-                }
+                },
+                "instructions": instructions
             }
         })
+    }
+
+    fn build_instructions(&self) -> String {
+        let mut parts = Vec::new();
+
+        if let Ok(core) = reader::read_core() {
+            if let Some(text) = core["value"]["content"]["text"].as_str() {
+                if !text.is_empty() {
+                    parts.push(text.to_string());
+                }
+            }
+        }
+
+        if let Ok(Some(memory)) = reader::read_memory() {
+            if let Some(text) = memory["value"]["content"]["text"].as_str() {
+                if !text.is_empty() {
+                    parts.push(text.to_string());
+                }
+            }
+        }
+
+        parts.join("\n\n")
     }
 
     fn handle_tools_list(&self, id: Value) -> Value {
