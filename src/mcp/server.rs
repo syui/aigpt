@@ -162,14 +162,15 @@ impl MCPServer {
 
     fn tool_read_core(&self) -> Value {
         match reader::read_core() {
-            Ok(content) => json!({ "content": content }),
+            Ok(record) => record,
             Err(e) => json!({ "error": e.to_string() }),
         }
     }
 
     fn tool_read_memory(&self) -> Value {
         match reader::read_memory() {
-            Ok(content) => json!({ "content": content }),
+            Ok(Some(record)) => record,
+            Ok(None) => json!({ "content": "" }),
             Err(e) => json!({ "error": e.to_string() }),
         }
     }
