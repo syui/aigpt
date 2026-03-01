@@ -5,10 +5,13 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 
+pub const DEFAULT_MEMORY: u64 = 100;
+
 pub struct Config {
     pub path: Option<String>,
     pub did: Option<String>,
     pub handle: Option<String>,
+    pub memory: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -21,6 +24,7 @@ struct BotConfig {
     did: Option<String>,
     handle: Option<String>,
     path: Option<String>,
+    memory: Option<u64>,
 }
 
 pub fn config_file() -> PathBuf {
@@ -49,6 +53,7 @@ pub fn load() -> Config {
                     path: bot.path,
                     did: bot.did,
                     handle: bot.handle,
+                    memory: bot.memory.unwrap_or(DEFAULT_MEMORY),
                 };
             }
         }
@@ -58,6 +63,7 @@ pub fn load() -> Config {
         path: None,
         did: None,
         handle: None,
+        memory: DEFAULT_MEMORY,
     }
 }
 

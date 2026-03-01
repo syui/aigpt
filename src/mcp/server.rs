@@ -90,8 +90,9 @@ impl MCPServer {
             }
         }
 
-        if let Ok(Some(memory)) = reader::read_memory() {
-            if let Some(text) = memory["value"]["content"]["text"].as_str() {
+        let records = reader::read_memory_all().unwrap_or_default();
+        for record in &records {
+            if let Some(text) = record["value"]["content"]["text"].as_str() {
                 if !text.is_empty() {
                     parts.push(text.to_string());
                 }
@@ -105,7 +106,7 @@ impl MCPServer {
         let tools = vec![
             json!({
                 "name": "read_core",
-                "description": "Read core.md - the AI's identity and instructions",
+                "description": "Read the AI's identity and instructions (core record)",
                 "inputSchema": {
                     "type": "object",
                     "properties": {}
@@ -113,7 +114,7 @@ impl MCPServer {
             }),
             json!({
                 "name": "read_memory",
-                "description": "Read memory.md - the AI's accumulated memories",
+                "description": "Read all memory records. Each record is a single memory element.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {}
@@ -121,13 +122,13 @@ impl MCPServer {
             }),
             json!({
                 "name": "save_memory",
-                "description": "Overwrite memory.md with new content",
+                "description": "Add a single memory element as a new record",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "content": {
                             "type": "string",
-                            "description": "Content to write to memory.md"
+                            "description": "A single memory element to save"
                         }
                     },
                     "required": ["content"]
@@ -135,16 +136,17 @@ impl MCPServer {
             }),
             json!({
                 "name": "compress",
-                "description": "Compress conversation into memory. AI decides what to keep, tool writes the result to memory.md",
+                "description": "Replace all memory records with a compressed set. Deletes all existing records and creates new ones from the provided items.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "conversation": {
-                            "type": "string",
-                            "description": "Compressed memory content to save"
+                        "items": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "Array of memory elements to keep after compression"
                         }
                     },
-                    "required": ["conversation"]
+                    "required": ["items"]
                 }
             }),
         ];
@@ -192,9 +194,8 @@ impl MCPServer {
     }
 
     fn tool_read_memory(&self) -> Value {
-        match reader::read_memory() {
-            Ok(Some(record)) => record,
-            Ok(None) => json!({ "content": "" }),
+        match reader::read_memory_all() {
+            Ok(records) => json!({ "records": records, "count": records.len() }),
             Err(e) => json!({ "error": e.to_string() }),
         }
     }
@@ -202,15 +203,23 @@ impl MCPServer {
     fn tool_save_memory(&self, arguments: &Value) -> Value {
         let content = arguments["content"].as_str().unwrap_or("");
         match writer::save_memory(content) {
-            Ok(()) => json!({ "success": true }),
+            Ok(()) => json!({ "success": true, "count": reader::memory_count() }),
             Err(e) => json!({ "error": e.to_string() }),
         }
     }
 
     fn tool_compress(&self, arguments: &Value) -> Value {
-        let conversation = arguments["conversation"].as_str().unwrap_or("");
-        match writer::save_memory(conversation) {
-            Ok(()) => json!({ "success": true }),
+        let items: Vec<String> = arguments["items"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        match writer::compress_memory(&items) {
+            Ok(()) => json!({ "success": true, "count": items.len() }),
             Err(e) => json!({ "error": e.to_string() }),
         }
     }

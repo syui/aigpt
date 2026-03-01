@@ -18,13 +18,13 @@ enum Commands {
     /// Start MCP server (JSON-RPC over stdio)
     Server,
 
-    /// Read core.json
+    /// Read core record
     ReadCore,
 
-    /// Read latest memory record
+    /// Read all memory records
     ReadMemory,
 
-    /// Create new memory record
+    /// Add a single memory element
     SaveMemory {
         /// Content to write
         content: String,
@@ -51,15 +51,19 @@ fn main() -> Result<()> {
         }
 
         Some(Commands::ReadMemory) => {
-            match reader::read_memory()? {
-                Some(record) => println!("{}", serde_json::to_string_pretty(&record)?),
-                None => println!("No memory records found"),
+            let records = reader::read_memory_all()?;
+            if records.is_empty() {
+                println!("No memory records found");
+            } else {
+                for record in &records {
+                    println!("{}", serde_json::to_string_pretty(record)?);
+                }
             }
         }
 
         Some(Commands::SaveMemory { content }) => {
             writer::save_memory(&content)?;
-            println!("Saved.");
+            println!("Saved. ({} records)", reader::memory_count());
         }
     }
 
@@ -72,30 +76,17 @@ fn print_status() {
     let handle = cfg.handle.clone().unwrap_or_else(|| "self".to_string());
     let base = config::base_dir(&cfg);
     let id = config::identity(&cfg);
-
-    let memory_dir = config::collection_dir(&cfg, "ai.syui.gpt.memory");
-    let memory_count = std::fs::read_dir(&memory_dir)
-        .map(|entries| {
-            entries
-                .filter_map(|e| e.ok())
-                .filter(|e| e.path().extension().is_some_and(|ext| ext == "json"))
-                .count()
-        })
-        .unwrap_or(0);
-
-    let latest_version = match reader::read_memory() {
-        Ok(Some(record)) => record["value"]["version"].as_u64().unwrap_or(0),
-        _ => 0,
-    };
+    let count = reader::memory_count();
 
     println!("aigpt - AI memory MCP server\n");
     println!("config: {}", config::config_file().display());
     println!("did:    {}", did);
     println!("handle: {}", handle);
+    println!("memory: {}", cfg.memory);
     println!();
     println!("path: {}/", base.display());
     println!("  {}/{}", id, "ai.syui.gpt.core/self.json");
     println!("  {}/{}", id, "ai.syui.gpt.memory/*.json");
     println!();
-    println!("memory: {} records (version: {})", memory_count, latest_version);
+    println!("records: {}/{}", count, cfg.memory);
 }
