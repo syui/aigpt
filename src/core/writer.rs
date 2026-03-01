@@ -7,18 +7,20 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::core::{config, reader};
 
 fn generate_tid() -> String {
+    // ATProto TID: 64-bit integer as 13 base32-sortable chars
+    // bit 63: always 0 (sign), bits 62..10: timestamp (microseconds), bits 9..0: clock_id
     const CHARSET: &[u8] = b"234567abcdefghijklmnopqrstuvwxyz";
     let micros = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_micros() as u64;
-    let mut tid = [0u8; 13];
-    let mut v = micros;
+    let v = (micros << 10) & 0x7FFFFFFFFFFFFFFF;
+    let mut tid = String::with_capacity(13);
     for i in (0..13).rev() {
-        tid[i] = CHARSET[(v & 0x1f) as usize];
-        v >>= 5;
+        let idx = ((v >> (i * 5)) & 0x1f) as usize;
+        tid.push(CHARSET[idx] as char);
     }
-    String::from_utf8(tid.to_vec()).unwrap()
+    tid
 }
 
 fn next_version() -> u64 {
