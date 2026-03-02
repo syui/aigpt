@@ -94,7 +94,8 @@ fn run_setup() -> Result<()> {
         .expect("Cannot find config directory")
         .join("ai.syui.log")
         .join("config.json");
-    let aigpt_bin = std::env::current_exe().unwrap_or_else(|_| "aigpt".into());
+    let aigpt_bin = which_command("aigpt")
+        .unwrap_or_else(|| "aigpt".into());
 
     // 1. ~/ai/
     std::fs::create_dir_all(&ai_dir)?;
@@ -156,12 +157,17 @@ fn run_setup() -> Result<()> {
     Ok(())
 }
 
-fn is_command_available(cmd: &str) -> bool {
+fn which_command(cmd: &str) -> Option<std::path::PathBuf> {
     Command::new("which")
         .arg(cmd)
         .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| std::path::PathBuf::from(String::from_utf8_lossy(&o.stdout).trim()))
+}
+
+fn is_command_available(cmd: &str) -> bool {
+    which_command(cmd).is_some()
 }
 
 fn print_status() {
