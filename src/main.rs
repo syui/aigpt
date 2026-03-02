@@ -90,7 +90,10 @@ fn run_setup() -> Result<()> {
         .unwrap()
         .to_path_buf();
     let cfg_file = config::config_file();
-    let site_config = log_dir.join("public").join("config.json");
+    let site_config = dirs::config_dir()
+        .expect("Cannot find config directory")
+        .join("ai.syui.log")
+        .join("config.json");
     let aigpt_bin = std::env::current_exe().unwrap_or_else(|_| "aigpt".into());
 
     // 1. ~/ai/
@@ -114,22 +117,14 @@ fn run_setup() -> Result<()> {
 
     // 3. config symlink
     std::fs::create_dir_all(&cfg_dir)?;
-    if !cfg_file.exists() {
-        #[cfg(unix)]
-        std::os::unix::fs::symlink(&site_config, &cfg_file)?;
-        #[cfg(windows)]
-        std::os::windows::fs::symlink_file(&site_config, &cfg_file)?;
-        println!("ok {} -> {}", cfg_file.display(), site_config.display());
-    } else if cfg_file.is_symlink() {
-        let target = std::fs::read_link(&cfg_file)?;
-        if target == site_config {
-            println!("skip {} (linked)", cfg_file.display());
-        } else {
-            println!("skip {} (symlink -> {})", cfg_file.display(), target.display());
-        }
-    } else {
-        println!("skip {} (exists)", cfg_file.display());
+    if cfg_file.is_symlink() || cfg_file.exists() {
+        std::fs::remove_file(&cfg_file)?;
     }
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&site_config, &cfg_file)?;
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(&site_config, &cfg_file)?;
+    println!("ok {} -> {}", cfg_file.display(), site_config.display());
 
     // 4. init data dirs
     config::init();
