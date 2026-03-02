@@ -82,9 +82,6 @@ fn main() -> Result<()> {
 }
 
 fn run_setup() -> Result<()> {
-    let home = dirs::home_dir().expect("Cannot find home directory");
-    let ai_dir = home.join("ai");
-    let log_dir = ai_dir.join("log");
     let cfg_dir = config::config_file()
         .parent()
         .unwrap()
@@ -97,26 +94,7 @@ fn run_setup() -> Result<()> {
     let aigpt_bin = which_command("aigpt")
         .unwrap_or_else(|| "aigpt".into());
 
-    // 1. ~/ai/
-    std::fs::create_dir_all(&ai_dir)?;
-    println!("ok {}/", ai_dir.display());
-
-    // 2. git clone
-    if !log_dir.exists() {
-        println!("cloning ai/log...");
-        let status = Command::new("git")
-            .args(["clone", "https://git.syui.ai/ai/log"])
-            .current_dir(&ai_dir)
-            .status()?;
-        if !status.success() {
-            anyhow::bail!("git clone failed");
-        }
-        println!("ok {}/", log_dir.display());
-    } else {
-        println!("skip {} (exists)", log_dir.display());
-    }
-
-    // 3. config symlink
+    // 1. config symlink
     std::fs::create_dir_all(&cfg_dir)?;
     if cfg_file.is_symlink() || cfg_file.exists() {
         std::fs::remove_file(&cfg_file)?;
@@ -127,11 +105,11 @@ fn run_setup() -> Result<()> {
     std::os::windows::fs::symlink_file(&site_config, &cfg_file)?;
     println!("ok {} -> {}", cfg_file.display(), site_config.display());
 
-    // 4. init data dirs
+    // 2. init data dirs
     config::init();
     println!("ok data initialized");
 
-    // 5. claude mcp add
+    // 3. claude mcp add
     if is_command_available("claude") {
         let status = Command::new("claude")
             .args([
