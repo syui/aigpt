@@ -8,15 +8,22 @@ use aigpt::mcp::MCPServer;
 #[derive(Parser)]
 #[command(name = "aigpt")]
 #[command(about = "AI memory MCP server")]
-#[command(version)]
+#[command(disable_version_flag = true)]
 struct Cli {
+    #[arg(short = 'v', long = "version")]
+    version: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Initial setup: clone repo, link config, register MCP
+    /// Show version
+    #[command(name = "v")]
+    Version,
+
+    /// Initial setup: link config, register MCP
     Setup,
 
     /// Start MCP server (JSON-RPC over stdio)
@@ -38,8 +45,18 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    if let Some(Commands::Setup) = &cli.command {
-        return run_setup();
+    if cli.version {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
+    match &cli.command {
+        Some(Commands::Version) => {
+            println!("{}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        Some(Commands::Setup) => return run_setup(),
+        _ => {}
     }
 
     config::init();
@@ -75,7 +92,7 @@ fn main() -> Result<()> {
             println!("Saved. ({} records)", reader::memory_count());
         }
 
-        Some(Commands::Setup) => unreachable!(),
+        Some(Commands::Version) | Some(Commands::Setup) => unreachable!(),
     }
 
     Ok(())
