@@ -6,12 +6,28 @@ use std::path::PathBuf;
 use chrono::Utc;
 
 pub const DEFAULT_MEMORY: u64 = 100;
+pub const COLLECTION_CORE: &str = "ai.syui.gpt.core";
+pub const COLLECTION_MEMORY: &str = "ai.syui.gpt.memory";
 
 pub struct Config {
     pub path: Option<String>,
     pub did: Option<String>,
     pub handle: Option<String>,
     pub memory: u64,
+}
+
+impl Config {
+    pub fn did(&self) -> &str {
+        self.did.as_deref().unwrap_or("self")
+    }
+
+    pub fn handle(&self) -> &str {
+        self.handle.as_deref().unwrap_or("self")
+    }
+
+    pub fn identity(&self) -> &str {
+        if cfg!(windows) { self.handle() } else { self.did() }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -84,22 +100,20 @@ pub fn init() {
     }
 
     let cfg = load();
-    let core_path = record_path(&cfg, "ai.syui.gpt.core", "self");
+    let core_path = record_path(&cfg, COLLECTION_CORE, "self");
     if !core_path.exists() {
         if let Some(parent) = core_path.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        let did = cfg.did.clone().unwrap_or_else(|| "self".to_string());
-        let handle = cfg.handle.clone().unwrap_or_else(|| "self".to_string());
         let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
         let core_record = json!({
-            "uri": format!("at://{}/ai.syui.gpt.core/self", did),
+            "uri": format!("at://{}/{}/self", cfg.did(), COLLECTION_CORE),
             "value": {
-                "$type": "ai.syui.gpt.core",
-                "did": did,
-                "handle": handle,
+                "$type": COLLECTION_CORE,
+                "did": cfg.did(),
+                "handle": cfg.handle(),
                 "content": {
-                    "$type": "ai.syui.gpt.core#markdown",
+                    "$type": format!("{}#markdown", COLLECTION_CORE),
                     "text": ""
                 },
                 "createdAt": now
@@ -108,7 +122,7 @@ pub fn init() {
         let _ = fs::write(&core_path, serde_json::to_string_pretty(&core_record).unwrap());
     }
 
-    let memory_dir = collection_dir(&cfg, "ai.syui.gpt.memory");
+    let memory_dir = collection_dir(&cfg, COLLECTION_MEMORY);
     let _ = fs::create_dir_all(&memory_dir);
 }
 
@@ -121,23 +135,15 @@ pub fn base_dir(cfg: &Config) -> PathBuf {
     }
 }
 
-pub fn identity(cfg: &Config) -> String {
-    if cfg!(windows) {
-        cfg.handle.clone().unwrap_or_else(|| "self".to_string())
-    } else {
-        cfg.did.clone().unwrap_or_else(|| "self".to_string())
-    }
-}
-
 /// $cfg/{did|handle}/{collection}/{rkey}.json
 pub fn record_path(cfg: &Config, collection: &str, rkey: &str) -> PathBuf {
     base_dir(cfg)
-        .join(identity(cfg))
+        .join(cfg.identity())
         .join(collection)
         .join(format!("{}.json", rkey))
 }
 
 /// $cfg/{did|handle}/{collection}/
 pub fn collection_dir(cfg: &Config, collection: &str) -> PathBuf {
-    base_dir(cfg).join(identity(cfg)).join(collection)
+    base_dir(cfg).join(cfg.identity()).join(collection)
 }

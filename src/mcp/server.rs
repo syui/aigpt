@@ -72,7 +72,7 @@ impl MCPServer {
                 },
                 "serverInfo": {
                     "name": "aigpt",
-                    "version": "0.3.0"
+                    "version": env!("CARGO_PKG_VERSION")
                 },
                 "instructions": instructions
             }

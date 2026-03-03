@@ -167,21 +167,18 @@ fn is_command_available(cmd: &str) -> bool {
 
 fn print_status() {
     let cfg = config::load();
-    let did = cfg.did.clone().unwrap_or_else(|| "self".to_string());
-    let handle = cfg.handle.clone().unwrap_or_else(|| "self".to_string());
     let base = config::base_dir(&cfg);
-    let id = config::identity(&cfg);
     let count = reader::memory_count();
 
     println!("aigpt - AI memory MCP server\n");
     println!("config: {}", config::config_file().display());
-    println!("did:    {}", did);
-    println!("handle: {}", handle);
+    println!("did:    {}", cfg.did());
+    println!("handle: {}", cfg.handle());
     println!("memory: {}", cfg.memory);
     println!();
     println!("path: {}/", base.display());
-    println!("  {}/{}", id, "ai.syui.gpt.core/self.json");
-    println!("  {}/{}", id, "ai.syui.gpt.memory/*.json");
+    println!("  {}/{}/self.json", cfg.identity(), config::COLLECTION_CORE);
+    println!("  {}/{}/*.json", cfg.identity(), config::COLLECTION_MEMORY);
     println!();
     println!("records: {}/{}", count, cfg.memory);
 }

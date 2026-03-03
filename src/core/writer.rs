@@ -1,20 +1,22 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::fs;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::core::config;
+use crate::core::config::{self, COLLECTION_MEMORY};
+
+static TID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn generate_tid() -> String {
-    // ATProto TID: 64-bit integer as 13 base32-sortable chars
-    // bit 63: always 0 (sign), bits 62..10: timestamp (microseconds), bits 9..0: clock_id
     const CHARSET: &[u8] = b"234567abcdefghijklmnopqrstuvwxyz";
     let micros = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_micros() as u64;
-    let v = (micros << 10) & 0x7FFFFFFFFFFFFFFF;
+    let clock_id = TID_COUNTER.fetch_add(1, Ordering::Relaxed) & 0x3FF;
+    let v = ((micros << 10) | clock_id) & 0x7FFFFFFFFFFFFFFF;
     let mut tid = String::with_capacity(13);
     for i in (0..13).rev() {
         let idx = ((v >> (i * 5)) & 0x1f) as usize;
@@ -23,27 +25,29 @@ fn generate_tid() -> String {
     tid
 }
 
-/// Save a single memory element as a new TID file
-pub fn save_memory(content: &str) -> Result<()> {
-    let cfg = config::load();
-    let did = cfg.did.clone().unwrap_or_else(|| "self".to_string());
-    let tid = generate_tid();
+fn build_memory_record(did: &str, tid: &str, text: &str) -> Value {
     let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-
-    let record = json!({
-        "uri": format!("at://{}/ai.syui.gpt.memory/{}", did, tid),
+    json!({
+        "uri": format!("at://{}/{}/{}", did, COLLECTION_MEMORY, tid),
         "value": {
-            "$type": "ai.syui.gpt.memory",
+            "$type": COLLECTION_MEMORY,
             "did": did,
             "content": {
-                "$type": "ai.syui.gpt.memory#markdown",
-                "text": content
+                "$type": format!("{}#markdown", COLLECTION_MEMORY),
+                "text": text
             },
             "createdAt": now
         }
-    });
+    })
+}
 
-    let dir = config::collection_dir(&cfg, "ai.syui.gpt.memory");
+/// Save a single memory element as a new TID file
+pub fn save_memory(content: &str) -> Result<()> {
+    let cfg = config::load();
+    let tid = generate_tid();
+    let record = build_memory_record(cfg.did(), &tid, content);
+
+    let dir = config::collection_dir(&cfg, COLLECTION_MEMORY);
     fs::create_dir_all(&dir)
         .with_context(|| format!("Failed to create {}", dir.display()))?;
     let path = dir.join(format!("{}.json", tid));
@@ -55,15 +59,13 @@ pub fn save_memory(content: &str) -> Result<()> {
 /// Delete all memory files, then write new ones from the given items
 pub fn compress_memory(items: &[String]) -> Result<()> {
     let cfg = config::load();
-    let did = cfg.did.clone().unwrap_or_else(|| "self".to_string());
-    let dir = config::collection_dir(&cfg, "ai.syui.gpt.memory");
+    let dir = config::collection_dir(&cfg, COLLECTION_MEMORY);
 
     // delete all existing memory files
-    if dir.exists() {
-        for entry in fs::read_dir(&dir)? {
-            let entry = entry?;
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for entry in entries.flatten() {
             if entry.path().extension().is_some_and(|ext| ext == "json") {
-                fs::remove_file(entry.path())?;
+                let _ = fs::remove_file(entry.path());
             }
         }
     }
@@ -71,37 +73,9 @@ pub fn compress_memory(items: &[String]) -> Result<()> {
     fs::create_dir_all(&dir)
         .with_context(|| format!("Failed to create {}", dir.display()))?;
 
-    // write each item as a new TID file
     for item in items {
-        let micros = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_micros() as u64;
-        // small delay to ensure unique TIDs
-        std::thread::sleep(std::time::Duration::from_micros(1));
-
-        let v = (micros << 10) & 0x7FFFFFFFFFFFFFFF;
-        const CHARSET: &[u8] = b"234567abcdefghijklmnopqrstuvwxyz";
-        let mut tid = String::with_capacity(13);
-        for i in (0..13).rev() {
-            let idx = ((v >> (i * 5)) & 0x1f) as usize;
-            tid.push(CHARSET[idx] as char);
-        }
-
-        let now = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-        let record = json!({
-            "uri": format!("at://{}/ai.syui.gpt.memory/{}", did, tid),
-            "value": {
-                "$type": "ai.syui.gpt.memory",
-                "did": did,
-                "content": {
-                    "$type": "ai.syui.gpt.memory#markdown",
-                    "text": item
-                },
-                "createdAt": now
-            }
-        });
-
+        let tid = generate_tid();
+        let record = build_memory_record(cfg.did(), &tid, item);
         let path = dir.join(format!("{}.json", tid));
         let json_str = serde_json::to_string_pretty(&record)?;
         fs::write(&path, json_str)
